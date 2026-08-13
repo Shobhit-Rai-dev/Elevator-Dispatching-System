@@ -1,0 +1,31 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Passenger" as passenger
+actor "Maintenance Staff" as maintenance
+actor "System Controller" as controller
+actor "Daily Log Scheduler" as timer <<Scheduled Actor>>
+
+rectangle "Smart Elevator Dispatching System" {
+  usecase "Request Elevator" as UC1
+  usecase "Dispatch Elevator" as UC2
+  usecase "Update Floor Display" as UC3
+  usecase "Board Elevator" as UC4
+  usecase "Trigger Overweight Alarm" as UC5
+  usecase "Put Elevator in Maintenance Mode" as UC6
+  usecase "Generate Daily Usage Log" as UC7
+  
+  passenger --> UC1
+  passenger --> UC4
+  maintenance --> UC6
+  controller --> UC2
+  timer --> UC7
+  
+  ' Include relationship
+  UC1 ..> UC3 : <<include>>
+  
+  ' Extend relationship with Guard condition
+  UC4 <.. UC5 : <<extend>>\nCondition: {weight > max capacity}
+}
+@enduml

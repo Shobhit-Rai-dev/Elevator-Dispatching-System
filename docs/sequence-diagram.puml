@@ -1,0 +1,29 @@
+@startuml
+autonumber
+actor User
+participant "FloorButton\n<<Observer>>" as FB
+participant ElevatorController as EC
+participant "DispatchStrategy\n<<Strategy>>" as DS
+participant "Elevator\n<<Subject>>" as E
+participant "ElevatorState\n<<State>>" as S
+
+User -> FB: Press "UP" button on Floor 3
+FB -> EC: requestElevator(sourceFloor=3, direction=UP)
+EC -> DS: selectBestElevator(request, listOfElevators)
+DS --> EC: Returns Elevator 1
+EC -> E: assignRequest(request)
+E -> S: handleRequest(request)
+note right of S: Elevator transitions from\nIdleState to MovingUpState
+S --> E: transitionState(new MovingUpState())
+
+loop Every Tick (Simulation)
+    E -> E: move(1 floor)
+    E -> FB: notifyObservers(currentFloor, currentState)
+    FB --> User: Updates Display ("Elevator is at Floor 2")
+end
+
+E -> E: reaches Floor 3
+E -> FB: notifyObservers(currentFloor=3, state=Idle)
+note right of FB: Button light turns off
+E --> User: Opens Doors
+@enduml
