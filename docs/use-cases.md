@@ -1,93 +1,161 @@
 # Use Case Specifications
 
-This document contains the detailed specifications for three core use cases of the Smart Elevator Dispatching System, fulfilling Deliverable 3.
+This document contains the detailed specifications for three core use cases of the Elevator Dispatching System.
 
 ---
 
-## Use Case 1: Request Elevator
-
+## Use Case Specification: Request Elevator
+**Use Case ID:** UC-01
+**Use Case Name:** Request Elevator
 **Primary Actor:** Passenger
-**Stakeholders:** 
-- Passenger: Wants swift and safe transport to their destination.
-- Building Management: Wants optimal energy efficiency and reduced lobby congestion.
 
-**Preconditions:** 
-- The system is powered on.
-- At least one elevator in the building is operational and not in maintenance mode.
+**STAKEHOLDERS:**
+1. **Passenger:** Wants an elevator to arrive at the requested floor quickly.
+2. **Building Administrator:** Wants efficient and reliable elevator operation.
+3. **Elevator Maintenance Team:** Needs the system to detect and report elevator problems.
 
-**Postconditions:** 
-- An elevator successfully arrives at the passenger's source floor and opens its doors.
+**PRECONDITIONS:**
+1. The elevator dispatch system is operational.
+2. At least one elevator is available or operational.
+3. The passenger is at a floor with a call button.
 
-**Trigger:** 
-- The passenger presses the "UP" or "DOWN" call button located in the floor hallway.
+**POSTCONDITIONS:**
+1. Elevator arrives at the requested floor.
+2. Passenger can enter the elevator.
 
-**Main Flow:**
-1. The passenger presses the call button.
-2. The Floor Button registers the request and sends the source floor and direction to the Elevator Controller.
-3. The Elevator Controller evaluates the positions and states of all active elevators using the Dispatch Strategy algorithm.
-4. The Controller assigns the request to the most optimal Elevator.
-5. The system triggers the `<<include>>` use case "Update Floor Display", updating the digital screen to inform the passenger that a car is assigned.
-6. The chosen Elevator travels to the requested floor.
-7. The Elevator arrives at the floor, changes its state to Idle, and opens its doors for boarding.
+**TRIGGER:**
+Passenger presses the "Up" or "Down" call button.
 
-**Alternate Flows:**
-- **3a. No Elevators Available:** If all elevators are currently in Maintenance Mode, the system updates the Floor Display to read "Out of Service" and ignores the request.
-- **6a. Elevator Reaches Capacity En Route:** If the assigned elevator fills up at an intermediate floor before reaching the passenger, it triggers a "Capacity Reached" event. The Controller transparently re-runs the Dispatch Strategy (Step 3) and assigns a *new* elevator to the passenger.
+**MAIN FLOW:**
+1. The passenger presses the Up or Down button.
+2. The system detects the request.
+3. The system identifies the passenger's current floor and requested direction.
+4. The system checks the status and location of all operational elevators.
+5. The dispatch algorithm evaluates the available elevators.
+6. The system selects the most suitable elevator.
+7. The request is assigned to the selected elevator.
+8. The selected elevator moves toward the passenger's floor.
+9. The system updates the elevator's status and location.
+10. The passenger is notified when the elevator arrives.
 
----
+**ALTERNATE FLOW 1 – No Elevator Currently Available:**
+1. The system detects that all elevators are busy or unavailable.
+2. The request is placed in a waiting queue.
+3. The system continuously monitors elevator availability.
+4. When an elevator becomes available, the system assigns it to the waiting request.
+5. The passenger is notified when the elevator is dispatched.
 
-## Use Case 2: Put Elevator in Maintenance Mode
-
-**Primary Actor:** Maintenance Staff
-**Stakeholders:** 
-- Maintenance Staff: Requires exclusive and safe control over the elevator car.
-- Passengers: Need to know the car is out of service so they do not wait for it.
-
-**Preconditions:** 
-- The maintenance staff possesses the correct physical security key or digital authorization code.
-
-**Postconditions:** 
-- The selected elevator is removed from the active dispatch pool and locked for servicing.
-
-**Trigger:** 
-- Maintenance staff inputs the security code or turns the physical key in the elevator's control panel.
-
-**Main Flow:**
-1. The Maintenance Staff triggers the maintenance request via the control panel.
-2. The system verifies the authorization credentials.
-3. The system changes the elevator's internal state to `MaintenanceState`.
-4. The Elevator Controller removes this specific elevator from the list of available cars (it will no longer receive dispatch assignments).
-5. The system updates all hallway floor displays for this elevator shaft to read "Maintenance - Out of Service".
-6. The elevator doors lock open, granting the staff safe access to the car.
-
-**Alternate Flows:**
-- **2a. Invalid Authorization:** If the code or key is incorrect, the system rejects the request, plays an error beep, and logs a security warning.
-- **3a. Elevator is Currently Occupied:** If the elevator is currently moving or has passengers inside when the key is turned, the system will *not* immediately halt the car. Instead, it schedules the maintenance mode to activate ONLY after the current trip completes and all passengers exit.
+**ALTERNATE FLOW 2 – Invalid or Duplicate Request:**
+1. The system detects that the same request has already been registered.
+2. The system does not create another duplicate request.
+3. The existing request remains active.
+4. The passenger continues waiting for the assigned elevator.
 
 ---
 
-## Use Case 3: Generate Daily Usage Log
+## Use Case Specification: Dispatch Elevator
+**Use Case ID:** UC-02
+**Use Case Name:** Dispatch Elevator
+**Primary Actor:** Elevator Dispatch System
 
-**Primary Actor:** Daily Log Scheduler (Scheduled / Time-triggered Actor)
-**Stakeholders:** 
-- Building Management: Relies on analytics to track energy usage, passenger wait times, and hardware faults.
+**STAKEHOLDERS:**
+- **Passenger/User:** Wants the elevator to arrive quickly and safely.
+- **Building Administrator:** Wants efficient utilization of all elevators.
+- **Elevator Operator/Maintenance Team:** Wants accurate elevator status information.
+- **Building Management System:** May provide information about elevator availability and building conditions.
 
-**Preconditions:** 
-- The system has been actively recording dispatch and movement data throughout the day.
+**PRECONDITIONS:**
+1. The elevator dispatch system is operational.
+2. At least one elevator is functioning.
+3. A passenger request has been registered.
+4. The system has access to elevator location and status information.
 
-**Postconditions:** 
-- A comprehensive daily log file is generated, saved, and distributed to management.
+**POSTCONDITIONS:**
+1. An appropriate elevator is assigned to the request.
+2. The selected elevator receives a destination/stop command.
+3. The request status is updated.
+4. The elevator begins moving toward the requested floor.
 
-**Trigger:** 
-- The system clock reaches exactly 23:59 (11:59 PM).
+**TRIGGER:**
+A new passenger elevator request is received by the dispatch system.
 
-**Main Flow:**
-1. The Daily Log Scheduler triggers the automated reporting service.
-2. The system queries the database for all trip records, average wait times, and error logs generated during the day.
-3. The system compiles this raw data into a formatted PDF or CSV summary report.
-4. The system saves the report into the long-term management database.
-5. The system automatically emails the report to the configured building administrators.
+**MAIN FLOW:**
+1. The dispatch system receives a new elevator request.
+2. The system identifies the requested floor and direction.
+3. The system retrieves the current position and status of all elevators.
+4. The system filters out elevators that are out of service.
+5. The system calculates the estimated response time for each suitable elevator.
+6. The system compares the available elevators.
+7. The system selects the elevator with the most suitable response time.
+8. The system assigns the passenger request to the selected elevator.
+9. The selected elevator receives the required movement command.
+10. The elevator travels toward the passenger's floor.
+11. The system updates the request and elevator status.
+12. The elevator stops at the requested floor and the request is marked as served.
 
-**Alternate Flows:**
-- **2a. Database Connection Timeout:** If the system cannot connect to the database to retrieve the records, it triggers an alert to the IT team, caches the request locally, and retries the connection every 10 minutes until successful.
-- **4a. Insufficient Storage Space:** If the server is running out of disk space to save the new report, the system automatically compresses older logs from previous months to free up space before saving the new file.
+**ALTERNATE FLOW 1 – Selected Elevator Becomes Unavailable:**
+1. The system detects that the selected elevator has developed a fault or becomes unavailable.
+2. The current assignment is cancelled.
+3. The system marks the elevator as unavailable.
+4. The system searches for another suitable operational elevator.
+5. The request is reassigned to the next suitable elevator.
+
+**ALTERNATE FLOW 2 – Multiple Elevators Have Similar Response Times:**
+1. The system identifies two or more elevators with similar estimated response times.
+2. The system compares additional factors such as current direction, number of assigned stops, and load.
+3. The elevator with the best overall efficiency is selected.
+4. The request is assigned to the selected elevator.
+
+---
+
+## Use Case Specification: Handle Emergency
+**Use Case ID:** UC-03
+**Use Case Name:** Handle Elevator Emergency
+**Primary Actor:** Elevator Dispatch System
+
+**STAKEHOLDERS:**
+- **Passenger:** Wants to remain safe and receive emergency assistance.
+- **Building Administrator/Security:** Needs immediate notification of an elevator emergency.
+- **Maintenance Team:** Needs information about the elevator fault.
+- **Emergency Services:** May need to respond to serious emergencies.
+- **Elevator Dispatch System:** Must detect and respond to emergency conditions appropriately.
+
+**PRECONDITIONS:**
+1. The elevator dispatch system is operational.
+2. The elevator is connected to the dispatch system.
+3. Emergency sensors or the emergency button are functional.
+4. Communication between the elevator and control system is available.
+
+**POSTCONDITIONS:**
+1. The emergency condition is recorded.
+2. The affected elevator is removed from normal dispatching.
+3. Building security/maintenance is notified.
+4. Appropriate assistance is initiated.
+5. The elevator remains unavailable until it is declared safe.
+
+**TRIGGER:**
+An emergency button is pressed by a passenger or an emergency condition is detected by the elevator's sensors.
+
+**MAIN FLOW:**
+1. A passenger presses the emergency button or an emergency sensor is activated.
+2. The dispatch system detects the emergency signal.
+3. The system identifies the affected elevator and its current floor/location.
+4. The system immediately stops assigning new passenger requests to that elevator.
+5. The system marks the elevator as Emergency/Out of Service.
+6. The system sends an emergency notification to building security or maintenance.
+7. The system records the emergency event and relevant elevator information.
+8. Security or maintenance personnel respond to the emergency.
+9. Once the problem is resolved, authorized personnel inspect the elevator.
+10. The elevator is returned to normal service after it is declared safe.
+
+**ALTERNATE FLOW 1 – Communication Failure:**
+1. The system detects an emergency but cannot communicate with the affected elevator.
+2. The system records the communication failure.
+3. The system alerts building security/maintenance through the available communication channel.
+4. The elevator remains marked as unavailable until its condition can be verified.
+
+**ALTERNATE FLOW 2 – Emergency Resolved Before Assistance Arrives:**
+1. The passenger or sensor indicates that the emergency condition has ended.
+2. The system records the change.
+3. The elevator remains unavailable until an authorized person verifies its safety.
+4. After verification, the elevator is returned to normal operation.
