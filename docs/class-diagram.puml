@@ -1,0 +1,99 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+class BuildingAdministrator {
+  - name: String
+  - monitoring: boolean
+  + monitorSystem(): void
+}
+
+class FireAlarmSystem {
+  - status: String
+  + triggerAlarm(): void
+}
+
+class Building {
+  - name: String
+  - totalFloors: int
+}
+
+class SystemTimer {
+  - maintenanceThreshold: int
+  - usageCount: int
+  - nextHealthCheck: String
+  + triggerHealthCheck(): void
+  + monitorUsage(): void
+}
+
+class Passenger {
+  - name: String
+  - currentFloor: int
+  - destinationFloor: int
+  + pressButton(): void
+}
+
+class ElevatorDispatchSystem {
+  - algorithm: String
+  - status: String
+  - activeRequests: int
+  + assignRequest(r: ElevatorRequest): void
+  + updateStatus(): void
+  + handleEmergency(): void
+}
+
+class MaintenanceStaff {
+  - technician: String
+  - availability: String
+  + serviceElevator(e: Elevator): void
+}
+
+class ElevatorRequest {
+  - requestID: int
+  - sourceFloor: int
+  - destinationFloor: int
+  - direction: String
+  - status: String
+  - requestTime: String
+  + updateStatus(newStatus: String): void
+}
+
+class Elevator {
+  - elevatorID: String
+  - currentFloor: int
+  - direction: String
+  - status: String
+  - capacity: int
+  - occupied: int
+  + move(): void
+  + stop(): void
+  + openDoor(): void
+  + closeDoor(): void
+  + updateDisplay(): void
+}
+
+class Door {
+  - state: String
+  + open(): void
+  + close(): void
+}
+
+class DisplayPanel {
+  - message: String
+  + showMessage(msg: String): void
+}
+
+' Associations and Multiplicities
+BuildingAdministrator "1" -- "1" ElevatorDispatchSystem : monitors >
+FireAlarmSystem "1" -- "1" ElevatorDispatchSystem : emergency signal >
+Building "1" -- "1" ElevatorDispatchSystem : contains >
+Building "1" -- "1..*" Elevator : installs >
+SystemTimer "1" -- "1" ElevatorDispatchSystem : health check >
+SystemTimer "1" -- "1..*" Elevator : usage monitoring >
+Passenger "1..*" -- "1..*" ElevatorRequest : creates >
+ElevatorDispatchSystem "1" -- "0..*" ElevatorRequest : manages >
+ElevatorDispatchSystem "1" -- "1..*" Elevator : dispatches >
+MaintenanceStaff "1..*" -- "1..*" Elevator : services >
+Elevator "1" -- "1" Door : controls >
+Elevator "1" -- "1..*" DisplayPanel : updates >
+
+@enduml
