@@ -1,0 +1,92 @@
+
+Object Diagram
+
+@startuml
+title Elevator Dispatch System - Object Diagram (Concrete Scenario)
+
+skinparam shadowing false
+skinparam objectBorderColor Black
+skinparam objectBackgroundColor White
+
+object "building1 : Building" as Building {
+    name = "IIITV Academic Block"
+    totalFloors = 10
+}
+
+object "dispatcher1 : ElevatorDispatchSystem" as Dispatcher {
+    algorithm = "LOOK"
+    status = "Operational"
+    activeRequests = 3
+}
+
+object "passenger1 : Passenger" as Passenger {
+    name = "Rahul"
+    currentFloor = 3
+    destinationFloor = 8
+}
+
+object "request1 : ElevatorRequest" as Request {
+    requestID = 1001
+    sourceFloor = 3
+    destinationFloor = 8
+    direction = "UP"
+    status = "Assigned"
+    requestTime = "10:15 AM"
+}
+
+object "elevator2 : Elevator" as Elevator {
+    elevatorID = "E2"
+    currentFloor = 5
+    direction = "DOWN"
+    status = "Moving"
+    capacity = 10
+    occupied = 4
+}
+
+object "door2 : Door" as Door {
+    state = "Closed"
+}
+
+object "display2 : DisplayPanel" as Display {
+    message = "Moving to Floor 3"
+}
+
+object "admin1 : BuildingAdministrator" as Admin {
+    name = "Mr. Sharma"
+    monitoring = true
+}
+
+object "maintenance1 : MaintenanceStaff" as Maintenance {
+    technician = "Rakesh"
+    availability = "Available"
+}
+
+object "scheduler1 : SystemTimer" as Timer {
+    maintenanceThreshold = 1000
+    usageCount = 742
+    nextHealthCheck = "11:00 AM"
+}
+
+object "fireAlarm1 : FireAlarmSystem" as FireAlarm {
+    status = "Inactive"
+}
+
+Building --> Dispatcher : contains
+Building --> Elevator : installs
+
+Passenger --> Request : creates
+Dispatcher --> Request : manages
+Dispatcher --> Elevator : dispatches
+
+Elevator --> Door : controls
+Elevator --> Display : updates
+
+Admin --> Dispatcher : monitors
+Maintenance --> Elevator : services
+
+Timer --> Dispatcher : health check
+Timer --> Elevator : usage monitoring
+
+FireAlarm --> Dispatcher : emergency signal
+
+@enduml
