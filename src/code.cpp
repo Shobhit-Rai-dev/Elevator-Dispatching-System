@@ -162,14 +162,14 @@ public:
              << status;
     }
 
-    bool operator==(const ElevatorRequest &r) {
-
-        return sourceFloor == r.sourceFloor &&
-               destinationFloor == r.destinationFloor;
-    }
+    friend bool operator==(const ElevatorRequest &r1, ElevatorRequest &r2); 
 
     friend void showRequest(const ElevatorRequest &r);
 };
+bool operator==(const ElevatorRequest &r1, ElevatorRequest &r2){
+    return r1.sourceFloor == r2.sourceFloor && r1.destinationFloor==r2.destinationFloor;
+} 
+
 
 
 void showRequest(const ElevatorRequest &r) {
