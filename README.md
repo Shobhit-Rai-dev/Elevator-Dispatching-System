@@ -1,6 +1,6 @@
 # 🏢 Elevator Dispatching System
 
-> A practical and efficient C++ simulation of a real-world Elevator Dispatch System using Object-Oriented Programming principles and the LOOK scheduling algorithm.
+A C++ program that works like a real elevator system in a building.
 
 **Made by:**
 | Name | Enrollment No. |
@@ -13,69 +13,55 @@
 
 ---
 
-## 📌 About the Project
+## 💡 What Does This Program Do?
 
-This project simulates a smart **Elevator Dispatching System** for a 10-floor building. It features an interactive terminal-based control panel where a user can:
-- Request an elevator from any floor to any floor
-- Manually operate elevator doors and floor buttons
-- Trigger emergency rescues with maintenance staff
-- View real-time elevator fleet status
+Imagine you are standing on Floor 3 and want to go to Floor 8.
+You press a button → The **nearest elevator comes to you** → You get in → It drops you at Floor 8.
 
-The system intelligently dispatches the **best available elevator** using the **LOOK Algorithm**, which considers each elevator's current floor, direction of motion, and the passenger's travel direction — just like real-world elevator controllers.
+That is exactly what this program simulates — but for a 10-floor building with 3 elevators.
 
----
-
-## ⚙️ Features
-
-- ✅ **LOOK Algorithm** for smart, direction-aware elevator dispatching
-- ✅ Interactive **terminal control panel** (6 menu options)
-- ✅ **3 Elevators** — 2 standard + 1 dedicated Emergency unit
-- ✅ **Emergency rescue** system with maintenance staff dispatch
-- ✅ **Real-time fleet status** table
-- ✅ Full **OOP implementation** in C++
+You run the program, a menu appears in the terminal, and you can:
+- **Call an elevator** to your floor
+- **Open/Close doors** manually
+- **Report an emergency** (like someone stuck inside)
+- **See the status** of all elevators anytime
 
 ---
 
-## 🧠 OOP Concepts Used
+## 🧩 How the Program is Structured
 
-| OOP Concept | Where Used |
+The program has **6 main building blocks (classes):**
+
+| Class | What it represents |
 |---|---|
-| **Encapsulation** | `Elevator` class — private members with getters/setters |
-| **Abstraction** | `move()`, `openDoor()`, `closeDoor()` hide internal logic |
-| **Nested Class** | `ElevatorMotor` defined inside `Elevator` |
-| **Inheritance** | `EmergencyElevator` inherits from `Elevator` |
-| **`final` Keyword** | `class EmergencyElevator final` — no further inheritance |
-| **Virtual Function** | `virtual void move()` and `virtual void display()` |
-| **Override** | `display()` overridden in `EmergencyElevator` |
-| **`<<` Stream Operator Overloading** | `friend ostream& operator<<` in `Elevator` and `ElevatorRequest` |
-| **`==` Operator Overloading** | `operator==` in `ElevatorRequest` |
-| **Friend Function** | `showRequestSummary()` accesses private members |
-| **Static Variable** | `static int totalRequests` in `ElevatorDispatchSystem` |
-| **Static Function** | `static int getTotalRequests()` — callable without object |
-| **Runtime Polymorphism** | Base `Elevator*` pointer calls derived `display()` |
+| `Elevator` | A single elevator in the building |
+| `EmergencyElevator` | A special elevator only for emergencies |
+| `ElevatorRequest` | A trip request (e.g. Floor 3 → Floor 8) |
+| `MaintenanceStaff` | The repair team that rescues stuck passengers |
+| `ElevatorDispatchSystem` | The brain — decides which elevator to send |
+| `ElevatorMotor` | The motor inside each elevator (nested inside `Elevator`) |
 
 ---
 
-## 🔁 LOOK Algorithm — How It Works
+## 🤖 How Does It Pick the Right Elevator? (LOOK Algorithm)
 
-The **LOOK Algorithm** assigns a cost score to each elevator based on:
+Instead of just picking the **closest** elevator, the program is smarter.
+It uses the **LOOK Algorithm** — the same method real elevators use.
 
-1. **Elevator is IDLE** → Cost = simple distance to passenger floor
-2. **Elevator moving UP**
-   - Passenger ahead, same direction → *Direct pickup (cheapest)*
-   - Passenger ahead, wants to go DOWN → sweep to top, then come back
-   - Elevator already passed the floor → full sweep + penalty
-3. **Elevator moving DOWN**
-   - Passenger below, same direction → *Direct pickup (cheapest)*
-   - Passenger below, wants to go UP → sweep to bottom, then come back
-   - Elevator already passed the floor → full sweep + penalty
-4. **Emergency / Maintenance elevators** → Cost = 9999 (excluded)
+**Simple rules:**
+1. If an elevator is **not moving** → pick the closest one
+2. If an elevator is **going UP** and you are also going UP → it picks you up on the way *(cheapest option)*
+3. If an elevator is **going UP** but you want to go DOWN → it first finishes going up, then comes back for you
+4. If the elevator **already passed your floor** → it has to do a full round trip first
+5. If an elevator is in **Emergency or Maintenance** → it is completely ignored
 
-> The elevator with the **lowest cost score** gets dispatched.
+> The elevator with the **lowest cost (score)** wins and gets sent to you.
 
 ---
 
-## 🖥️ Terminal Control Panel
+## 🖥️ What the Menu Looks Like
+
+When you run the program, you see this:
 
 ```
 ========== ELEVATOR CONTROL PANEL ==========
@@ -88,50 +74,70 @@ The **LOOK Algorithm** assigns a cost score to each elevator based on:
 ============================================
 ```
 
+Just type a number and press Enter!
+
 ---
 
-## 📁 Project Structure
+## 📚 C++ Concepts Used (OOP)
+
+| Concept | Simple Meaning | Used Where |
+|---|---|---|
+| **Encapsulation** | Data is kept private, only methods can access it | `Elevator` class |
+| **Abstraction** | Complex steps hidden behind simple functions | `move()`, `openDoor()` |
+| **Nested Class** | A class inside another class | `ElevatorMotor` inside `Elevator` |
+| **Inheritance** | Child class gets features of parent class | `EmergencyElevator` from `Elevator` |
+| **`final`** | No one can further extend this class | `EmergencyElevator final` |
+| **Virtual Function** | Parent class method can be replaced by child | `display()`, `move()` |
+| **Override** | Child replaces parent's method | `display()` in `EmergencyElevator` |
+| **`<<` Operator** | Print object directly with `cout` | `Elevator`, `ElevatorRequest` |
+| **`==` Operator** | Compare two objects with `==` sign | `ElevatorRequest` |
+| **Friend Function** | Outside function can read private data | `showRequestSummary()` |
+| **Static Variable** | One shared value for all objects | `totalRequests` counter |
+| **Static Function** | Call without creating an object | `getTotalRequests()` |
+| **Polymorphism** | Same function, different behavior based on object | `display()` via base pointer |
+
+---
+
+## 📁 Files in This Project
 
 ```
 Elevator-Dispatching-System/
 │
 ├── src/
-│   ├── code.cpp                      # Original source code
-│   └── code.exe                      # Compiled binary
+│   └── code.cpp              ← The main C++ source code
 │
 ├── docs/
-│   ├── crc-cards.md                  # CRC cards for class design
-│   ├── noun-analysis.md              # Noun analysis document
-│   ├── use-cases.md                  # Use case documentation
-│   ├── use-case-diagram.puml         # PlantUML use case diagram
-│   ├── Domain-class-diagram.puml     # PlantUML class diagram
-│   ├── Domain-class-diagram.png.jpeg # Class diagram image
-│   ├── object-diagram.puml           # PlantUML object diagram
-│   └── object-diagram.png.png        # Object diagram image
+│   ├── crc-cards.md          ← Class design cards
+│   ├── noun-analysis.md      ← Object identification document
+│   ├── use-cases.md          ← What the system can do
+│   └── (diagrams...)         ← Class and object diagrams
 │
-├── problem-stament.md                # Problem statement
-└── README.md                         # Project overview (this file)
+├── problem-stament.md        ← The original problem given to us
+└── README.md                 ← This file
 ```
 
 ---
 
-## 🚀 How to Compile & Run
+## ▶️ How to Run
 
-**Requirements:** g++ compiler with C++17 support
-
+**Step 1 — Compile the code:**
 ```bash
-g++ -std=c++17 -Wall src/code.cpp -o elevator_system
-./elevator_system
+g++ -std=c++17 src/code.cpp -o elevator
 ```
 
-**On Windows (MinGW):**
+**Step 2 — Run it:**
+```bash
+./elevator
+```
+
+**On Windows:**
 ```powershell
-g++ -std=c++17 -Wall src\code.cpp -o elevator_system.exe
-.\elevator_system.exe
+g++ -std=c++17 src\code.cpp -o elevator.exe
+.\elevator.exe
 ```
 
 ---
 
-## 📄 License
+## 📝 Note
 
-This project is for educational purposes as part of a C++ Object-Oriented Programming course assignment.
+This project was made as part of a **C++ Object-Oriented Programming** course assignment.
