@@ -1,11 +1,20 @@
 /**
  * AEROVATOR / ELEVATOR DISPATCHING SYSTEM - APPLICATION SCRIPT
  * Features:
- * - Real-time 10-Floor Building Shaft Simulator
+ * - Real-time 10-Floor Building Shaft Simulator with Heavy Industrial Aesthetics
  * - C++ Ported LOOK Dispatch Algorithm
- * - Interactive Telemetry & Score Matrix HUD
- * - Web Audio API Synthetic Chimes & Alarms
- * - Interactive Canvas Ambient Mesh
+ * - Animated High-Tensile Steel Cables & Opposing Phase Counterweights
+ * - Rotating Motor Hoist Sheaves (Pulleys)
+ * - Industrial Red Bulkhead Lamps (Caged Emergency Lights)
+ * - Shaft FX Particle Engine: Rail Brake Sparks & Atmospheric Dust Motes
+ * - Web Audio API High-Fidelity Synthesizer:
+ *     * Variable-pitch induction motor acceleration & deceleration
+ *     * Pneumatic air door hiss & mechanical latches
+ *     * Electronic dual-tone arrival chime
+ *     * Emergency multi-tone tactical siren
+ * - Real-time Telemetry Cockpit Gauges (Speed, Tension, Motor RPM)
+ * - Interactive 3D Perspective Tilt Viewport on Mouse Move
+ * - Direct Floor Quick-Call Buttons on Shaft Grid
  */
 
 // Configuration Constants
@@ -20,7 +29,15 @@ const Direction = {
   DOWN: 'DOWN'
 };
 
-// Web Audio API Synthesizer for Interactive FX
+function dirName(d) {
+  if (d === Direction.UP) return 'UP';
+  if (d === Direction.DOWN) return 'DOWN';
+  return 'IDLE';
+}
+
+// ==========================================================================
+// HIGH-FIDELITY WEB AUDIO API SYNTHESIZER
+// ==========================================================================
 class SoundFX {
   constructor() {
     this.ctx = null;
@@ -34,6 +51,9 @@ class SoundFX {
         this.ctx = new AudioContext();
       }
     }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
   }
 
   toggle() {
@@ -41,30 +61,7 @@ class SoundFX {
     return this.enabled;
   }
 
-  playChime() {
-    if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, now); // A5
-    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15); // E6
-
-    gain.gain.setValueAtTime(0.12, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start(now);
-    osc.stop(now + 0.6);
-  }
-
-  playMotorHum(duration = 1.0) {
+  playClick() {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
@@ -74,10 +71,118 @@ class SoundFX {
     const gain = this.ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(110, now); // Low hum
-    osc.frequency.linearRampToValueAtTime(125, now + duration);
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.04);
 
-    gain.gain.setValueAtTime(0.04, now);
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.04);
+  }
+
+  playChime() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+
+    // First tone (A5 - 880Hz)
+    const osc1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, now);
+    gain1.gain.setValueAtTime(0.12, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc1.connect(gain1);
+    gain1.connect(this.ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.6);
+
+    // Second harmonious tone (E6 - 1318.5Hz)
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1318.5, now + 0.12);
+    gain2.gain.setValueAtTime(0.14, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    osc2.connect(gain2);
+    gain2.connect(this.ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.8);
+  }
+
+  playPneumaticDoor(isOpen) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+
+    // Noise buffer for air hiss
+    const bufferSize = this.ctx.sampleRate * 0.25;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+
+    const whiteNoise = this.ctx.createBufferSource();
+    whiteNoise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(isOpen ? 1800 : 900, now);
+    filter.Q.setValueAtTime(3, now);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+    whiteNoise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    whiteNoise.start(now);
+    whiteNoise.stop(now + 0.25);
+
+    // Mechanical latch clunk
+    const clunk = this.ctx.createOscillator();
+    const clunkGain = this.ctx.createGain();
+    clunk.type = 'square';
+    clunk.frequency.setValueAtTime(120, now + 0.05);
+    clunk.frequency.exponentialRampToValueAtTime(40, now + 0.12);
+    clunkGain.gain.setValueAtTime(0.07, now + 0.05);
+    clunkGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    clunk.connect(clunkGain);
+    clunkGain.connect(this.ctx.destination);
+    clunk.start(now + 0.05);
+    clunk.stop(now + 0.12);
+  }
+
+  playMotorHum(duration = 1.2, isUp = true) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    const startFreq = isUp ? 85 : 120;
+    const endFreq = isUp ? 135 : 95;
+
+    osc.frequency.setValueAtTime(startFreq, now);
+    osc.frequency.linearRampToValueAtTime(endFreq, now + duration * 0.5);
+    osc.frequency.linearRampToValueAtTime(startFreq, now + duration);
+
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.05, now + 0.2);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     osc.connect(gain);
@@ -87,35 +192,58 @@ class SoundFX {
     osc.stop(now + duration);
   }
 
+  playSparksSound() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    for (let i = 0; i < 4; i++) {
+      const t = now + i * 0.04;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(2400 + Math.random() * 800, t);
+      gain.gain.setValueAtTime(0.05, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.03);
+    }
+  }
+
   playEmergencyAlarm() {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
 
-    for (let i = 0; i < 3; i++) {
-      const startTime = this.ctx.currentTime + (i * 0.25);
+    for (let i = 0; i < 4; i++) {
+      const startTime = this.ctx.currentTime + (i * 0.28);
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(750, startTime);
-      osc.frequency.linearRampToValueAtTime(450, startTime + 0.2);
+      osc.frequency.setValueAtTime(820, startTime);
+      osc.frequency.linearRampToValueAtTime(420, startTime + 0.24);
 
-      gain.gain.setValueAtTime(0.15, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
+      gain.gain.setValueAtTime(0.18, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.24);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start(startTime);
-      osc.stop(startTime + 0.2);
+      osc.stop(startTime + 0.24);
     }
   }
 }
 
 const sfx = new SoundFX();
 
-// Elevator Class Model
+// ==========================================================================
+// ELEVATOR CLASS MODEL
+// ==========================================================================
 class Elevator {
   constructor(id, initialFloor, capacity, isEmergency = false, sirenCode = "") {
     this.id = id;
@@ -126,13 +254,11 @@ class Elevator {
     this.doorOpen = false;
     this.isEmergency = isEmergency;
     this.sirenCode = sirenCode;
-    this.motorRunning = false;
-    this.targetQueue = [];
     this.busyAnimating = false;
   }
 
   getFloorPercentage() {
-    // 0 to 10 floor mapped to 0% to 90% bottom offset
+    // 0 to 10 mapped to 0% to 90% bottom offset
     return (this.currentFloor / MAX_FLOOR) * 90;
   }
 }
@@ -145,17 +271,19 @@ const state = {
     new Elevator(3, 2, 8, true, "RED-ALERT-911")
   ],
   totalRequestsHandled: 4,
+  activeSpeed: 0.0,
+  activeTension: 14.2,
+  activeRPM: 0,
   logs: []
 };
 
-// Initialize elevator 2 with downward direction to match initial C++ state
+// Elevator 2 starts moving down to demonstrate LOOK algorithm in action
 state.elevators[1].direction = Direction.DOWN;
 
 // ==========================================================================
-// C++ LOOK ALGORITHM PORT
+// C++ PORTED LOOK ALGORITHM
 // ==========================================================================
 function calculateLookScore(elev, srcFloor, passengerDir) {
-  // Elevators under maintenance or emergency cannot take normal passengers
   if (elev.status !== "Available" && elev.status !== "Busy") {
     return 9999;
   }
@@ -163,12 +291,10 @@ function calculateLookScore(elev, srcFloor, passengerDir) {
   const cur = elev.currentFloor;
   const dir = elev.direction;
 
-  // Case 1: Stationary elevator -> simple distance
   if (dir === Direction.IDLE) {
     return Math.abs(cur - srcFloor);
   }
 
-  // Case 2: Elevator is moving UP
   if (dir === Direction.UP) {
     if (srcFloor >= cur && passengerDir === Direction.UP) {
       return (srcFloor - cur); // Approaching on the way (Golden Path)
@@ -176,10 +302,9 @@ function calculateLookScore(elev, srcFloor, passengerDir) {
     if (srcFloor >= cur && passengerDir === Direction.DOWN) {
       return (MAX_FLOOR - cur) + (MAX_FLOOR - srcFloor) + 2;
     }
-    return (MAX_FLOOR - cur) + (MAX_FLOOR - MIN_FLOOR) + (srcFloor - MIN_FLOOR) + 5; // Passed floor
+    return (MAX_FLOOR - cur) + (MAX_FLOOR - MIN_FLOOR) + (srcFloor - MIN_FLOOR) + 5; // Passed
   }
 
-  // Case 3: Elevator is moving DOWN
   if (dir === Direction.DOWN) {
     if (srcFloor <= cur && passengerDir === Direction.DOWN) {
       return (cur - srcFloor); // Approaching on the way (Golden Path)
@@ -187,7 +312,7 @@ function calculateLookScore(elev, srcFloor, passengerDir) {
     if (srcFloor <= cur && passengerDir === Direction.UP) {
       return (cur - MIN_FLOOR) + (srcFloor - MIN_FLOOR) + 2;
     }
-    return (cur - MIN_FLOOR) + (MAX_FLOOR - MIN_FLOOR) + (MAX_FLOOR - srcFloor) + 5; // Passed floor
+    return (cur - MIN_FLOOR) + (MAX_FLOOR - MIN_FLOOR) + (MAX_FLOOR - srcFloor) + 5; // Passed
   }
 
   return Math.abs(cur - srcFloor) + 10;
@@ -214,6 +339,124 @@ function evaluateBestElevator(srcFloor, destFloor) {
     desiredDir
   };
 }
+
+// ==========================================================================
+// SHAFT FX PARTICLE ENGINE (ELECTRIC RAIL SPARKS & ATMOSPHERIC DUST)
+// ==========================================================================
+class ShaftFXEngine {
+  constructor() {
+    this.canvas = null;
+    this.ctx = null;
+    this.sparks = [];
+    this.dustMotes = [];
+    this.running = false;
+  }
+
+  init() {
+    this.canvas = document.getElementById("shaft-fx-canvas");
+    if (!this.canvas) return;
+    this.ctx = this.canvas.getContext("2d");
+    this.resize();
+
+    window.addEventListener("resize", () => this.resize());
+
+    // Initialize atmospheric dust motes
+    for (let i = 0; i < 24; i++) {
+      this.dustMotes.push({
+        x: Math.random() * this.canvas.width,
+        y: Math.random() * this.canvas.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: -Math.random() * 0.4 - 0.1,
+        radius: Math.random() * 1.5 + 0.6,
+        alpha: Math.random() * 0.5 + 0.2
+      });
+    }
+
+    this.running = true;
+    this.animate();
+  }
+
+  resize() {
+    if (!this.canvas) return;
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    this.canvas.width = rect.width;
+    this.canvas.height = rect.height;
+  }
+
+  emitRailSparks(shaftIndex = 1, floorPercent = 50, count = 20) {
+    if (!this.canvas) return;
+    sfx.playSparksSound();
+
+    const shaftWidth = (this.canvas.width - 88) / 3;
+    const originX = 88 + (shaftIndex - 1) * shaftWidth + shaftWidth / 2;
+    const originY = this.canvas.height - (floorPercent / 100) * this.canvas.height - 20;
+
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.random() * Math.PI) - (Math.PI / 2);
+      const speed = Math.random() * 5 + 2;
+      this.sparks.push({
+        x: originX + (Math.random() - 0.5) * 12,
+        y: originY,
+        vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
+        vy: -Math.abs(Math.sin(angle) * speed) - 1,
+        life: 1.0,
+        decay: Math.random() * 0.04 + 0.02,
+        color: Math.random() > 0.3 ? '#ffdd55' : '#ff5533',
+        size: Math.random() * 2.2 + 1
+      });
+    }
+  }
+
+  animate() {
+    if (!this.running || !this.ctx) return;
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // 1. Draw atmospheric dust motes floating up the shaft
+    for (let i = 0; i < this.dustMotes.length; i++) {
+      const m = this.dustMotes[i];
+      m.x += m.vx;
+      m.y += m.vy;
+
+      if (m.y < 0) {
+        m.y = this.canvas.height;
+        m.x = Math.random() * this.canvas.width;
+      }
+      if (m.x < 0) m.x = this.canvas.width;
+      if (m.x > this.canvas.width) m.x = 0;
+
+      this.ctx.beginPath();
+      this.ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = `rgba(255, 60, 90, ${m.alpha * 0.35})`; // catches red bulkhead light
+      this.ctx.fill();
+    }
+
+    // 2. Draw active electric friction sparks
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const s = this.sparks[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.vy += 0.18; // gravity
+      s.life -= s.decay;
+
+      if (s.life <= 0) {
+        this.sparks.splice(i, 1);
+        continue;
+      }
+
+      this.ctx.beginPath();
+      this.ctx.arc(s.x, s.y, s.size * s.life, 0, Math.PI * 2);
+      this.ctx.fillStyle = s.color;
+      this.ctx.shadowBlur = 10;
+      this.ctx.shadowColor = s.color;
+      this.ctx.fill();
+      this.ctx.shadowBlur = 0;
+    }
+
+    requestAnimationFrame(() => this.animate());
+  }
+}
+
+const shaftFX = new ShaftFXEngine();
 
 // ==========================================================================
 // DOM MANIPULATION & UI RENDERING
@@ -254,23 +497,68 @@ function updateLOOKMatrix(scores, chosenId) {
   });
 }
 
+function updateCockpitGauges(speed, tension, rpm) {
+  state.activeSpeed = speed;
+  state.activeTension = tension;
+  state.activeRPM = rpm;
+
+  const speedElem = document.getElementById("gauge-speed");
+  const tensionElem = document.getElementById("gauge-tension");
+  const rpmElem = document.getElementById("gauge-rpm");
+  const pillSpeed = document.getElementById("pill-hoist-speed");
+
+  if (speedElem) speedElem.textContent = `${speed.toFixed(1)} m/s`;
+  if (tensionElem) tensionElem.textContent = `${tension.toFixed(1)} kN`;
+  if (rpmElem) rpmElem.textContent = `${Math.round(rpm)} RPM`;
+  if (pillSpeed) pillSpeed.textContent = `${speed.toFixed(1)} m/s`;
+}
+
 function updateCarDOM(elev) {
   const carElem = document.getElementById(`elevator-car-${elev.id}`);
   const floorText = document.getElementById(`car-floor-${elev.id}`);
   const dirIcon = document.getElementById(`car-dir-${elev.id}`);
+  const cablesElem = document.getElementById(`cables-${elev.id}`);
+  const counterweightElem = document.getElementById(`counterweight-${elev.id}`);
+  const sheaveElem = document.getElementById(`sheave-${elev.id}`);
 
   if (!carElem) return;
 
-  // Position
+  // Car Bottom Offset (0% to 90%)
   const bottomPercent = elev.getFloorPercentage();
   carElem.style.bottom = `${bottomPercent}%`;
 
-  // Floor and direction text
+  // Suspension Cables dynamic height (extends from 100% top down to car)
+  if (cablesElem) {
+    const cableLength = Math.max(8, 100 - bottomPercent - 8);
+    cablesElem.style.height = `${cableLength}%`;
+  }
+
+  // Counterweight moves in OPPOSITE phase (when car is low, weight is high)
+  if (counterweightElem) {
+    const cwTop = (bottomPercent / 90) * 78 + 6; // 6% to 84% top
+    counterweightElem.style.top = `${cwTop}%`;
+  }
+
+  // Sheave pulley spin animation
+  if (sheaveElem) {
+    sheaveElem.classList.remove("spinning-up", "spinning-down");
+    if (elev.direction === Direction.UP) sheaveElem.classList.add("spinning-up");
+    else if (elev.direction === Direction.DOWN) sheaveElem.classList.add("spinning-down");
+  }
+
+  // Floor position & chevron direction
   if (floorText) floorText.textContent = `F${elev.currentFloor}`;
   if (dirIcon) {
-    if (elev.direction === Direction.UP) dirIcon.textContent = "▲";
-    else if (elev.direction === Direction.DOWN) dirIcon.textContent = "▼";
-    else dirIcon.textContent = "—";
+    dirIcon.classList.remove("anim-up", "anim-down");
+    if (elev.direction === Direction.UP) {
+      dirIcon.textContent = "▲";
+      dirIcon.classList.add("anim-up");
+    } else if (elev.direction === Direction.DOWN) {
+      dirIcon.textContent = "▼";
+      dirIcon.classList.add("anim-down");
+    } else {
+      dirIcon.textContent = "—";
+    }
   }
 
   // Doors
@@ -280,7 +568,7 @@ function updateCarDOM(elev) {
     carElem.classList.remove("doors-open");
   }
 
-  // Siren flash
+  // Emergency flashing
   if (elev.status === "Emergency") {
     carElem.classList.add("siren-active");
   } else {
@@ -288,7 +576,9 @@ function updateCarDOM(elev) {
   }
 }
 
-// Elevator Trip Execution with Smooth Steps
+// ==========================================================================
+// ELEVATOR TRIP EXECUTION WITH INDUSTRIAL PHYSICS & AUDIO
+// ==========================================================================
 async function executeElevatorTrip(elev, srcFloor, destFloor, desiredDir) {
   elev.busyAnimating = true;
   elev.status = "Busy";
@@ -297,60 +587,86 @@ async function executeElevatorTrip(elev, srcFloor, destFloor, desiredDir) {
   const totalReqElem = document.getElementById("stat-total-requests");
   if (totalReqElem) totalReqElem.textContent = state.totalRequestsHandled;
 
-  appendLog(`Unit 0${elev.id} dispatched to Floor ${srcFloor} for passenger pickup.`, "info");
-  sfx.playMotorHum(1.2);
+  appendLog(`Unit 0${elev.id} dispatched to Floor ${srcFloor} for pickup.`, "info");
 
-  // 1. Move to Source Floor
-  elev.direction = (srcFloor > elev.currentFloor) ? Direction.UP : (srcFloor < elev.currentFloor ? Direction.DOWN : Direction.IDLE);
-  updateCarDOM(elev);
+  // Step 1: Move to Source Floor
+  if (elev.currentFloor !== srcFloor) {
+    const isUp = srcFloor > elev.currentFloor;
+    elev.direction = isUp ? Direction.UP : Direction.DOWN;
+    updateCarDOM(elev);
 
-  await new Promise(r => setTimeout(r, 1200));
-  elev.currentFloor = srcFloor;
-  elev.direction = Direction.IDLE;
-  updateCarDOM(elev);
-  sfx.playChime();
+    // Audio & Telemetry acceleration
+    sfx.playMotorHum(1.4, isUp);
+    updateCockpitGauges(1.8, 16.5, 1200);
+
+    // Spray friction sparks on startup
+    shaftFX.emitRailSparks(elev.id, elev.getFloorPercentage(), 15);
+
+    await new Promise(r => setTimeout(r, 1100));
+    elev.currentFloor = srcFloor;
+    elev.direction = Direction.IDLE;
+    updateCarDOM(elev);
+
+    // Deceleration sparks & arrival chime
+    shaftFX.emitRailSparks(elev.id, elev.getFloorPercentage(), 20);
+    updateCockpitGauges(0.0, 14.2, 0);
+    sfx.playChime();
+  }
 
   // Open Doors at Source
   elev.doorOpen = true;
   updateCarDOM(elev);
+  sfx.playPneumaticDoor(true);
   appendLog(`Unit 0${elev.id} arrived at Floor ${srcFloor}. Doors opened. Passenger boarded.`, "success");
   await new Promise(r => setTimeout(r, 900));
 
   // Close Doors
   elev.doorOpen = false;
   updateCarDOM(elev);
-  appendLog(`Unit 0${elev.id} doors closed. In transit to Floor ${destFloor}.`, "info");
-  await new Promise(r => setTimeout(r, 600));
+  sfx.playPneumaticDoor(false);
+  appendLog(`Unit 0${elev.id} doors locked. En route to Floor ${destFloor}.`, "info");
+  await new Promise(r => setTimeout(r, 550));
 
-  // 2. Move to Destination Floor
-  elev.direction = (destFloor > elev.currentFloor) ? Direction.UP : Direction.DOWN;
+  // Step 2: Move to Destination Floor
+  const destUp = destFloor > elev.currentFloor;
+  elev.direction = destUp ? Direction.UP : Direction.DOWN;
   updateCarDOM(elev);
-  sfx.playMotorHum(1.5);
 
-  await new Promise(r => setTimeout(r, 1600));
+  sfx.playMotorHum(1.7, destUp);
+  updateCockpitGauges(2.4, 18.2, 1480);
+  shaftFX.emitRailSparks(elev.id, elev.getFloorPercentage(), 18);
+
+  await new Promise(r => setTimeout(r, 1500));
   elev.currentFloor = destFloor;
   elev.direction = Direction.IDLE;
   updateCarDOM(elev);
+
+  // Arrival deceleration
+  shaftFX.emitRailSparks(elev.id, elev.getFloorPercentage(), 25);
+  updateCockpitGauges(0.0, 14.2, 0);
   sfx.playChime();
 
   // Open Doors at Destination
   elev.doorOpen = true;
   updateCarDOM(elev);
-  appendLog(`Unit 0${elev.id} reached destination Floor ${destFloor}. Passenger exited safely.`, "success");
+  sfx.playPneumaticDoor(true);
+  appendLog(`Unit 0${elev.id} arrived at destination Floor ${destFloor}. Passenger exited safely.`, "success");
   await new Promise(r => setTimeout(r, 1000));
 
   // Close Doors and restore status
   elev.doorOpen = false;
   elev.status = "Available";
   updateCarDOM(elev);
+  sfx.playPneumaticDoor(false);
   elev.busyAnimating = false;
 
   appendLog(`Unit 0${elev.id} trip completed. Status reset to Available.`, "info");
 }
 
-// Handle User Dispatch Click
+// Dispatch via dropdown selector
 function handleDispatchSubmit(e) {
   if (e) e.preventDefault();
+  sfx.playClick();
 
   const srcSelect = document.getElementById("select-source-floor");
   const destSelect = document.getElementById("select-dest-floor");
@@ -386,34 +702,136 @@ function handleDispatchSubmit(e) {
   updateLOOKMatrix(evaluation.scores, chosenElevator.id);
 
   appendLog(`LOOK Algorithm selected Unit 0${chosenElevator.id} (Calculated Cost: ${evaluation.scores[evaluation.bestIndex].cost})`, "success");
-
   executeElevatorTrip(chosenElevator, src, dest, evaluation.desiredDir);
 }
 
-// Emergency Trigger Simulation
+// Emergency Trigger Simulation with High-Alert Strobe
 function triggerEmergencyScenario(floor = 6) {
+  sfx.playClick();
+  const viewport = document.getElementById("shaft-viewport");
+  const lamps = document.querySelectorAll(".bulkhead-lamp");
+
+  // Activate dramatic red bulkhead strobe
+  if (viewport) viewport.classList.add("emergency-strobe");
+  lamps.forEach(l => l.classList.add("emergency-active"));
+
   const emgElev = state.elevators[2]; // Unit 03 (Emergency Elevator)
   emgElev.status = "Emergency";
   emgElev.direction = (floor > emgElev.currentFloor) ? Direction.UP : (floor < emgElev.currentFloor ? Direction.DOWN : Direction.IDLE);
   updateCarDOM(emgElev);
 
   sfx.playEmergencyAlarm();
-  appendLog(`[EMERGENCY SIREN] Passenger trapped at Floor ${floor}! Priority Override activated (Code: ${emgElev.sirenCode})`, "danger");
+  appendLog(`[EMERGENCY SIREN] Passenger trapped at Floor ${floor}! Priority Override (Code: ${emgElev.sirenCode})`, "danger");
+
+  // Sparks along emergency rail
+  shaftFX.emitRailSparks(3, emgElev.getFloorPercentage(), 30);
+  updateCockpitGauges(3.0, 21.0, 1850);
 
   setTimeout(() => {
     emgElev.currentFloor = floor;
     emgElev.direction = Direction.IDLE;
     emgElev.doorOpen = true;
     updateCarDOM(emgElev);
-    appendLog(`Unit 03 arrived at Floor ${floor}. Alpha Maintenance Team evacuated passengers safely.`, "success");
+    sfx.playPneumaticDoor(true);
+    shaftFX.emitRailSparks(3, emgElev.getFloorPercentage(), 35);
+    updateCockpitGauges(0.0, 14.2, 0);
+
+    appendLog(`Unit 03 reached Floor ${floor}. Alpha Maintenance Team evacuated passengers safely.`, "success");
 
     setTimeout(() => {
       emgElev.doorOpen = false;
       emgElev.status = "Available";
       updateCarDOM(emgElev);
-      appendLog(`Unit 03 emergency cleared. System restored to normal service.`, "info");
-    }, 2500);
+      sfx.playPneumaticDoor(false);
+
+      if (viewport) viewport.classList.remove("emergency-strobe");
+      lamps.forEach(l => l.classList.remove("emergency-active"));
+
+      appendLog(`Unit 03 emergency cleared. Tower restored to normal service.`, "info");
+    }, 2800);
   }, 1600);
+}
+
+// ==========================================================================
+// 3D PERSPECTIVE TILT ON MOUSE MOVE
+// ==========================================================================
+function init3DTilt() {
+  const shaftWrap = document.getElementById("shaft-wrap");
+  if (!shaftWrap) return;
+
+  shaftWrap.addEventListener("mousemove", (e) => {
+    const rect = shaftWrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    const tiltX = ((y - centerY) / centerY) * -6; // max 6 deg
+    const tiltY = ((x - centerX) / centerX) * 6;
+
+    shaftWrap.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+  });
+
+  shaftWrap.addEventListener("mouseleave", () => {
+    shaftWrap.style.transform = `rotateX(0deg) rotateY(0deg)`;
+  });
+}
+
+// ==========================================================================
+// CAMERA MODE CONTROLS
+// ==========================================================================
+function initCameraControls() {
+  const btns = document.querySelectorAll(".cam-btn");
+  const shaftWrap = document.getElementById("shaft-wrap");
+
+  btns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      btns.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      sfx.playClick();
+
+      const mode = btn.getAttribute("data-mode");
+      if (mode === "industrial") {
+        shaftWrap.style.transform = "scale(1.04) rotateX(4deg)";
+        appendLog("Camera View: Industrial Depth Angle Engaged.", "info");
+      } else if (mode === "emergency") {
+        triggerEmergencyScenario(6);
+      } else {
+        shaftWrap.style.transform = "scale(1) rotateX(0deg)";
+        appendLog("Camera View: Standard Full Tower Overview.", "info");
+      }
+    });
+  });
+}
+
+// ==========================================================================
+// DIRECT FLOOR QUICK-CALL BUTTONS ON SHAFT
+// ==========================================================================
+function initFloorQuickCallButtons() {
+  const quickBtns = document.querySelectorAll(".quick-call-btn");
+  quickBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      sfx.playClick();
+      const floor = parseInt(btn.getAttribute("data-floor"), 10);
+      const dir = btn.getAttribute("data-dir");
+
+      // Auto pick a logical destination floor
+      let dest = 0;
+      if (dir === "UP") {
+        dest = Math.min(MAX_FLOOR, floor + 4);
+      } else {
+        dest = Math.max(MIN_FLOOR, floor - 4);
+      }
+
+      const srcSelect = document.getElementById("select-source-floor");
+      const destSelect = document.getElementById("select-dest-floor");
+      if (srcSelect) srcSelect.value = floor;
+      if (destSelect) destSelect.value = dest;
+
+      handleDispatchSubmit();
+    });
+  });
 }
 
 // ==========================================================================
@@ -433,7 +851,7 @@ function initCanvasBackground() {
   });
 
   const particles = [];
-  const count = Math.min(width > 768 ? 60 : 30, 80);
+  const count = Math.min(width > 768 ? 55 : 25, 75);
 
   for (let i = 0; i < count; i++) {
     particles.push({
@@ -448,8 +866,7 @@ function initCanvasBackground() {
   function render() {
     ctx.clearRect(0, 0, width, height);
 
-    // Draw connecting lines
-    ctx.strokeStyle = "rgba(56, 189, 248, 0.04)";
+    ctx.strokeStyle = "rgba(56, 189, 248, 0.05)";
     ctx.lineWidth = 1;
 
     for (let i = 0; i < particles.length; i++) {
@@ -467,7 +884,6 @@ function initCanvasBackground() {
       }
     }
 
-    // Draw nodes
     ctx.fillStyle = "rgba(56, 189, 248, 0.35)";
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
@@ -495,6 +911,10 @@ function initCanvasBackground() {
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
   initCanvasBackground();
+  shaftFX.init();
+  init3DTilt();
+  initCameraControls();
+  initFloorQuickCallButtons();
 
   // Populate Select Floor Options (0 to 10)
   const srcSelect = document.getElementById("select-source-floor");
@@ -516,15 +936,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Initial Car Positioning
+  // Initial Car Positioning, Cables and Counterweights
   state.elevators.forEach(el => updateCarDOM(el));
 
   // Initial System Logs
-  appendLog("Aerovator Dispatch System v3.2 Initialized.", "info");
-  appendLog("Unit 01 (Passenger Standard): ONLINE @ Floor 0", "info");
-  appendLog("Unit 02 (High-Speed Express): CRUISING DOWN @ Floor 6", "info");
-  appendLog("Unit 03 (Emergency Unit): PRIORITY OVERRIDE READY @ Floor 2", "info");
-  appendLog("LOOK Scheduling Algorithm Core: ONLINE & OPTIMIZED", "success");
+  appendLog("Aerovator Industrial Dispatch System v3.3 Initialized.", "info");
+  appendLog("Unit 01 (Passenger Standard): ONLINE @ Floor 0 (Cables Tensioned)", "info");
+  appendLog("Unit 02 (High-Speed Express): CRUISING DOWN @ Floor 6 (Sheaves Spinning)", "info");
+  appendLog("Unit 03 (Emergency Rescue Unit): PRIORITY OVERRIDE READY @ Floor 2", "info");
+  appendLog("Industrial Bulkhead Safety Lights: OPERATIONAL", "success");
+  appendLog("LOOK Scheduling Algorithm Core: ONLINE & DIRECTION-AWARE", "success");
 
   // Initial LOOK calculation
   const initEval = evaluateBestElevator(3, 8);
@@ -541,6 +962,15 @@ document.addEventListener("DOMContentLoaded", () => {
     emgBtn.addEventListener("click", () => triggerEmergencyScenario(6));
   }
 
+  const sparkBtn = document.getElementById("btn-spark-test");
+  if (sparkBtn) {
+    sparkBtn.addEventListener("click", () => {
+      sfx.playClick();
+      shaftFX.emitRailSparks(2, state.elevators[1].getFloorPercentage(), 30);
+      appendLog("Manual Guide Shoe Brake Test: Friction sparks generated on Unit 02.", "warn");
+    });
+  }
+
   const soundBtn = document.getElementById("btn-sound-toggle");
   if (soundBtn) {
     soundBtn.addEventListener("click", () => {
@@ -551,15 +981,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Door manual override buttons
+  // Manual Door Overrides
   const openDoorBtn = document.getElementById("btn-door-open");
   if (openDoorBtn) {
     openDoorBtn.addEventListener("click", () => {
       const el = state.elevators[0];
       el.doorOpen = true;
       updateCarDOM(el);
-      sfx.playChime();
-      appendLog("Manual Override: Unit 01 Doors OPENED.", "info");
+      sfx.playPneumaticDoor(true);
+      appendLog("Manual Override: Unit 01 Pneumatic Doors OPENED.", "info");
     });
   }
 
@@ -569,7 +999,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const el = state.elevators[0];
       el.doorOpen = false;
       updateCarDOM(el);
-      appendLog("Manual Override: Unit 01 Doors CLOSED.", "info");
+      sfx.playPneumaticDoor(false);
+      appendLog("Manual Override: Unit 01 Pneumatic Doors CLOSED.", "info");
     });
   }
 });
