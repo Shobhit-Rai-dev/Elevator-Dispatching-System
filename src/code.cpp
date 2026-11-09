@@ -56,7 +56,6 @@ private:
 
 protected:
     int capacity;
-
 public:
     // Constructor
     Elevator(int idNum, int floor, int cap) {
@@ -202,7 +201,6 @@ private:
     int destinationFloor;
     Direction desiredDir;
     string status;
-
 public:
     ElevatorRequest(int src, int dest) {
         sourceFloor = src;

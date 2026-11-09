@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AEROVATOR 3D — Real-Time Interactive Building & Elevator Simulation</title>
+  <meta name="description" content="A self-contained 3D modern building with working elevators, independent queues, and smooth physics built in Three.js." />
+
+  <!-- Pinned CDN for Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       CSS STYLING - MODERN GLASSMORPHISM HUD OVER 3D CANVAS
+       ========================================================================== */
+    :root {
+      --bg-dark: #070b16;
+      --panel-bg: rgba(13, 20, 38, 0.72);
+      --panel-border: rgba(255, 255, 255, 0.1);
+      --accent-cyan: #06b6d4;
+      --accent-blue: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-sans: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: var(--font-sans);
+      color: var(--text-main);
+    }
+
+    /* 3D WebGL Canvas */
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      outline: none;
+    }
+
+    /* Floating Header HUD */
+    .hud-header {
+      position: absolute;
+      top: 18px;
+      left: 22px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      pointer-events: auto;
+    }
+
+    .hud-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .hud-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 12px var(--accent-cyan);
+      animation: pulse 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.85); opacity: 0.6; }
+      100% { transform: scale(1.2); opacity: 1; }
+    }
+
+    .hud-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+
+    .hud-title sup {
+      color: var(--accent-cyan);
+      font-size: 0.65rem;
+      margin-left: 4px;
+    }
+
+    /* Top-Right Camera / Global Controls */
+    .hud-top-actions {
+      position: absolute;
+      top: 18px;
+      right: 22px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .hud-btn {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .hud-btn:hover {
+      background: rgba(30, 45, 80, 0.85);
+      border-color: var(--accent-blue);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .hud-btn.active {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.45);
+    }
+
+    /* Left Side: Interactive Floor Call Deck */
+    .floor-call-dock {
+      position: absolute;
+      left: 22px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      max-height: 80vh;
+      pointer-events: auto;
+    }
+
+    .dock-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .floor-btn-list {
+      display: flex;
+      flex-direction: column-reverse; /* Floor 10 at top, Floor 0 at bottom */
+      gap: 5px;
+    }
+
+    .floor-call-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 7px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.2s ease;
+      min-width: 82px;
+    }
+
+    .floor-call-btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+
+    .floor-call-btn.requested {
+      background: rgba(6, 182, 212, 0.25);
+      border-color: var(--accent-cyan);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.5);
+    }
+
+    .floor-call-btn .btn-arrow {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+    }
+
+    .floor-call-btn.requested .btn-arrow {
+      color: var(--accent-cyan);
+      animation: bounce 0.6s infinite alternate;
+    }
+
+    @keyframes bounce {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-2px); }
+    }
+
+    /* Bottom: Elevator Fleet Status Telemetry Cards */
+    .fleet-status-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      gap: 12px;
+      max-width: 95vw;
+      overflow-x: auto;
+      padding: 4px;
+      pointer-events: auto;
+    }
+
+    .car-card {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      min-width: 140px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .car-card:hover, .car-card.selected {
+      border-color: var(--accent-blue);
+      background: rgba(22, 33, 62, 0.85);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(56, 189, 248, 0.25);
+    }
+
+    .car-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .car-card-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .car-card-badge {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+    }
+
+    .car-card.selected .car-card-badge {
+      background: rgba(56, 189, 248, 0.25);
+      color: var(--accent-blue);
+    }
+
+    .car-card-floor {
+      font-size: 1.15rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .car-card-state {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      margin-top: 2px;
+    }
+
+    /* Quick Instruction Toast */
+    .hud-hint {
+      position: absolute;
+      bottom: 95px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      pointer-events: none;
+      background: rgba(7, 11, 22, 0.6);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Mobile Responsive Adjustments */
+    @media (max-width: 768px) {
+      .floor-call-dock {
+        left: 10px;
+        padding: 10px 8px;
+        max-height: 70vh;
+      }
+      .floor-call-btn {
+        padding: 5px 8px;
+        min-width: 65px;
+        font-size: 0.68rem;
+      }
+      .hud-header {
+        top: 10px;
+        left: 10px;
+      }
+      .hud-top-actions {
+        top: 10px;
+        right: 10px;
+      }
+      .fleet-status-bar {
+        bottom: 10px;
+        gap: 6px;
+      }
+      .car-card {
+        min-width: 110px;
+        padding: 6px 10px;
+      }
+      .hud-hint {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- WebGL Canvas for Three.js Scene -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Top-Left Branding / Title -->
+  <header class="hud-header">
+    <div class="hud-badge">
+      <span class="hud-dot"></span>
+      <span class="hud-title">AEROVATOR<sup>3D</sup></span>
+    </div>
+  </header>
+
+  <!-- Top-Right Actions -->
+  <div class="hud-top-actions">
+    <button id="btn-auto-rotate" class="hud-btn active" title="Toggle Auto-Rotation">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+      </svg>
+      <span>Auto-Orbit</span>
+    </button>
+    <button id="btn-reset-cam" class="hud-btn" title="Reset Camera View">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span>Reset View</span>
+    </button>
+  </div>
+
+  <!-- Left Side: Floor Call Button Deck -->
+  <nav class="floor-call-dock" aria-label="Floor Selection Deck">
+    <div class="dock-title">Call Floor</div>
+    <div class="floor-btn-list" id="floor-btn-list">
+      <!-- Populated dynamically from CONFIG.floors -->
+    </div>
+  </nav>
+
+  <!-- Instructional Hint -->
+  <div class="hud-hint">
+    Drag to orbit • Scroll to zoom • Click a car to follow • Click floor to dispatch
+  </div>
+
+  <!-- Bottom: 4 Elevator Telemetry Cards -->
+  <div class="fleet-status-bar" id="fleet-status-bar">
+    <!-- Populated dynamically from CONFIG.elevators -->
+  </div>
+
+  <!-- ==========================================================================
+       JAVASCRIPT: THREE.JS 3D BUILDING & REAL-TIME ELEVATOR DISPATCH
+       ========================================================================== -->
+  <script>
+    // ========================================================================
+    // 1. CONFIGURATION OBJECT (Easily customizable)
+    // ========================================================================
+    const CONFIG = {
+      floors: 10,             // Total number of floors (0 to 10 = 11 levels)
+      floorHeight: 3.2,       // Height in world units between floor slabs
+      buildingWidth: 16.0,    // Building X dimension
+      buildingDepth: 16.0,    // Building Z dimension
+      numElevators: 4,        // 4 corner elevator shafts
+      speeds: [2.0, 2.5, 2.2, 3.0], // Individual speeds (floors per second)
+      doorOpenDuration: 0.6,  // Seconds to slide doors open/closed
+      doorWaitDuration: 1.4,  // Seconds car stays idle at floor for boarding
+      colors: {
+        skyTop: 0x050813,
+        skyBottom: 0x0e172a,
+        ground: 0x070c18,
+        groundGrid: 0x1e293b,
+        slab: 0x1e293b,
+        slabEdge: 0x38bdf8,
+        column: 0x334155,
+        glass: 0x38bdf8,
+        glassOpacity: 0.14,
+        carFrame: 0x0f172a,
+        carGlass: 0x67e8f9,
+        carLight: 0x38bdf8,
+        door: 0x475569,
+        cable: 0x64748b,
+        shaftBeacon: 0x06b6d4,
+        selectedOutline: 0xf59e0b
+      }
+    };
+
+    // Calculate total building height
+    CONFIG.totalHeight = (CONFIG.floors) * CONFIG.floorHeight;
+
+    // ========================================================================
+    // 2. SYNTHETIC SOUND FX (Web Audio API)
+    // ========================================================================
+    class SoundSynthesizer {
+      constructor() {
+        this.ctx = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playChime() {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc1 = this.ctx.createOscillator();
+        const gain1 = this.ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(880, now);
+        gain1.gain.setValueAtTime(0.08, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc1.connect(gain1);
+        gain1.connect(this.ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.5);
+
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1318.5, now + 0.1);
+        gain2.gain.setValueAtTime(0.09, now + 0.1);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+        osc2.connect(gain2);
+        gain2.connect(this.ctx.destination);
+        osc2.start(now + 0.1);
+        osc2.stop(now + 0.7);
+      }
+      playClick() {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.05);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      }
+    }
+    const audio = new SoundSynthesizer();
+
+    // ========================================================================
+    // 3. THREE.JS SCENE SETUP
+    // ========================================================================
+    const canvas = document.getElementById('webgl-canvas');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(CONFIG.colors.skyTop);
+    scene.fog = new THREE.FogExp2(CONFIG.colors.skyTop, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 300);
+    const initialCamPos = new THREE.Vector3(34, 26, 38);
+    const initialTarget = new THREE.Vector3(0, CONFIG.totalHeight * 0.45, 0);
+    camera.position.copy(initialCamPos);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.02; // Don't flip below ground
+    controls.minDistance = 12;
+    controls.maxDistance = 110;
+    controls.target.copy(initialTarget);
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.75;
+
+    // ========================================================================
+    // 4. LIGHTING & ENVIRONMENT
+    // ========================================================================
+    const hemiLight = new THREE.HemisphereLight(0xe2e8f0, 0x090d16, 0.65);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    dirLight.position.set(28, 45, 24);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 120;
+    const shadowD = 28;
+    dirLight.shadow.camera.left = -shadowD;
+    dirLight.shadow.camera.right = shadowD;
+    dirLight.shadow.camera.top = shadowD;
+    dirLight.shadow.camera.bottom = -shadowD;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    // Soft colored ground fill
+    const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
+    fillLight.position.set(-25, 20, -25);
+    scene.add(fillLight);
+
+    // Ground Plane with subtle grid
+    const groundGeo = new THREE.PlaneGeometry(160, 160);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: CONFIG.colors.ground,
+      roughness: 0.85,
+      metalness: 0.15
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const gridHelper = new THREE.GridHelper(120, 60, CONFIG.colors.groundGrid, 0x0f172a);
+    gridHelper.position.y = 0.02;
+    scene.add(gridHelper);
+
+    // ========================================================================
+    // 5. BUILDING STRUCTURE (Cutaway / Glass Architecture)
+    // ========================================================================
+    const buildingGroup = new THREE.Group();
+    scene.add(buildingGroup);
+
+    // Entrance Animation setup
+    buildingGroup.position.y = -CONFIG.totalHeight * 0.2;
+    let entranceProgress = 0;
+
+    // Helper: Generate Floor Number Canvas Texture
+    function createFloorTextTexture(floorNum) {
+      const cvs = document.createElement('canvas');
+      cvs.width = 256;
+      cvs.height = 128;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = 'rgba(10, 16, 32, 0.85)';
+      ctx.fillRect(0, 0, cvs.width, cvs.height);
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(4, 4, cvs.width - 8, cvs.height - 8);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 54px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = floorNum === 0 ? 'F0 (G)' : `FLOOR ${floorNum}`;
+      ctx.fillText(label, cvs.width / 2, cvs.height / 2);
+      const tex = new THREE.CanvasTexture(cvs);
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    // Shared Materials
+    const slabMaterial = new THREE.MeshStandardMaterial({
+      color: CONFIG.colors.slab,
+      roughness: 0.35,
+      metalness: 0.5
+    });
+
+    const edgeGlowMat = new THREE.MeshBasicMaterial({
+      color: CONFIG.colors.slabEdge,
+      wireframe: false
+    });
+
+    const columnMaterial = new THREE.MeshStandardMaterial({
+      color: CONFIG.colors.column,
+      roughness: 0.4,
+      metalness: 0.7
+    });
+
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: CONFIG.colors.glass,
+      transparent: true,
+      opacity: CONFIG.colors.glassOpacity,
+      roughness: 0.1,
+      metalness: 0.1,
+      transmission: 0.65,
+      ior: 1.45,
+      side: THREE.DoubleSide
+    });
+
+    // 5A. Build Floor Slabs, Columns & Floor Number Plates
+    const slabGeo = new THREE.BoxGeometry(CONFIG.buildingWidth, 0.35, CONFIG.buildingDepth);
+    const colGeo = new THREE.CylinderGeometry(0.2, 0.2, CONFIG.floorHeight, 12);
+
+    for (let f = 0; f <= CONFIG.floors; f++) {
+      const floorY = f * CONFIG.floorHeight;
+
+      // Slab mesh
+      const slab = new THREE.Mesh(slabGeo, slabMaterial);
+      slab.position.set(0, floorY, 0);
+      slab.receiveShadow = true;
+      slab.castShadow = true;
+      buildingGroup.add(slab);
+
+      // Thin cyan edge trim
+      const edgeGeo = new THREE.BoxGeometry(CONFIG.buildingWidth + 0.1, 0.08, CONFIG.buildingDepth + 0.1);
+      const edge = new THREE.Mesh(edgeGeo, edgeGlowMat);
+      edge.position.set(0, floorY - 0.12, 0);
+      buildingGroup.add(edge);
+
+      // Floor Signboard at front face
+      const signGeo = new THREE.PlaneGeometry(2.4, 1.2);
+      const signMat = new THREE.MeshBasicMaterial({
+        map: createFloorTextTexture(f),
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      const sign = new THREE.Mesh(signGeo, signMat);
+      sign.position.set(0, floorY + 1.2, CONFIG.buildingDepth / 2 + 0.02);
+      buildingGroup.add(sign);
+
+      // Interior Floor Ambient PointLight (subtle night glow)
+      if (f > 0 && f < CONFIG.floors) {
+        const floorLight = new THREE.PointLight(0x38bdf8, 0.35, 12);
+        floorLight.position.set(0, floorY + 1.6, 0);
+        buildingGroup.add(floorLight);
+      }
+
+      // Interior Structural Columns (between slabs)
+      if (f < CONFIG.floors) {
+        const colOffsets = [
+          [-4, -4], [4, -4], [-4, 4], [4, 4]
+        ];
+        colOffsets.forEach(([cx, cz]) => {
+          const col = new THREE.Mesh(colGeo, columnMaterial);
+          col.position.set(cx, floorY + CONFIG.floorHeight / 2, cz);
+          col.castShadow = true;
+          col.receiveShadow = true;
+          buildingGroup.add(col);
+        });
+      }
+    }
+
+    // 5B. Cutaway Outer Glass Facade (2 Sides Glass, 2 Sides Open Cutaway)
+    const glassSideGeoZ = new THREE.PlaneGeometry(CONFIG.buildingWidth, CONFIG.totalHeight);
+    const glassBack = new THREE.Mesh(glassSideGeoZ, glassMaterial);
+    glassBack.position.set(0, CONFIG.totalHeight / 2, -CONFIG.buildingDepth / 2);
+    buildingGroup.add(glassBack);
+
+    const glassSideGeoX = new THREE.PlaneGeometry(CONFIG.buildingDepth, CONFIG.totalHeight);
+    const glassLeft = new THREE.Mesh(glassSideGeoX, glassMaterial);
+    glassLeft.rotation.y = Math.PI / 2;
+    glassLeft.position.set(-CONFIG.buildingWidth / 2, CONFIG.totalHeight / 2, 0);
+    buildingGroup.add(glassLeft);
+
+    // Roof Machinery & Observation Structure
+    const roofHouseGeo = new THREE.BoxGeometry(6, 2.5, 6);
+    const roofHouse = new THREE.Mesh(roofHouseGeo, columnMaterial);
+    roofHouse.position.set(0, CONFIG.totalHeight + 1.25, 0);
+    roofHouse.castShadow = true;
+    buildingGroup.add(roofHouse);
+
+    // Antenna Mast
+    const mastGeo = new THREE.CylinderGeometry(0.06, 0.15, 6, 8);
+    const mastMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 });
+    const mast = new THREE.Mesh(mastGeo, mastMat);
+    mast.position.set(0, CONFIG.totalHeight + 5.5, 0);
+    buildingGroup.add(mast);
+
+    const beaconGeo = new THREE.SphereGeometry(0.2, 8, 8);
+    const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff2244 });
+    const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+    beacon.position.set(0, CONFIG.totalHeight + 8.5, 0);
+    buildingGroup.add(beacon);
+
+    // ========================================================================
+    // 6. FOUR ELEVATOR SHAFTS & CARS (ONE AT EACH CORNER)
+    // ========================================================================
+    // Corner coordinates for 4 shafts:
+    // [0] Front-Left, [1] Front-Right, [2] Back-Right, [3] Back-Left
+    const halfW = (CONFIG.buildingWidth / 2) - 1.2;
+    const halfD = (CONFIG.buildingDepth / 2) - 1.2;
+    const cornerPositions = [
+      { id: 1, x: -halfW, z:  halfD, name: "UNIT 01 (FL)" },
+      { id: 2, x:  halfW, z:  halfD, name: "UNIT 02 (FR)" },
+      { id: 3, x:  halfW, z: -halfD, name: "UNIT 03 (BR)" },
+      { id: 4, x: -halfW, z: -halfD, name: "UNIT 04 (BL)" }
+    ];
+
+    const elevatorCars = [];
+
+    // Helper: Smooth Cubic Ease In-Out
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    cornerPositions.forEach((pos, idx) => {
+      // 6A. Vertical Steel Guide Rails
+      const railGeo = new THREE.CylinderGeometry(0.08, 0.08, CONFIG.totalHeight + 1, 8);
+      const railMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.85, roughness: 0.3 });
+      
+      const railL = new THREE.Mesh(railGeo, railMat);
+      railL.position.set(pos.x - 0.9, CONFIG.totalHeight / 2, pos.z);
+      railL.castShadow = true;
+      buildingGroup.add(railL);
+
+      const railR = new THREE.Mesh(railGeo, railMat);
+      railR.position.set(pos.x + 0.9, CONFIG.totalHeight / 2, pos.z);
+      railR.castShadow = true;
+      buildingGroup.add(railR);
+
+      // Top Motor Sheave Housing
+      const sheaveBoxGeo = new THREE.BoxGeometry(2.2, 0.6, 2.2);
+      const sheaveBox = new THREE.Mesh(sheaveBoxGeo, columnMaterial);
+      sheaveBox.position.set(pos.x, CONFIG.totalHeight + 0.4, pos.z);
+      buildingGroup.add(sheaveBox);
+
+      // 6B. Elevator Car Group
+      const carGroup = new THREE.Group();
+      carGroup.position.set(pos.x, 0, pos.z);
+      buildingGroup.add(carGroup);
+
+      // Car Outer Metal Frame
+      const carFrameMat = new THREE.MeshStandardMaterial({
+        color: CONFIG.colors.carFrame,
+        metalness: 0.8,
+        roughness: 0.35
+      });
+
+      // Cab floor and ceiling
+      const cabBaseGeo = new THREE.BoxGeometry(1.7, 0.18, 1.7);
+      const cabFloor = new THREE.Mesh(cabBaseGeo, carFrameMat);
+      cabFloor.position.y = 0.09;
+      cabFloor.castShadow = true;
+      carGroup.add(cabFloor);
+
+      const cabCeil = new THREE.Mesh(cabBaseGeo, carFrameMat);
+      cabCeil.position.y = 2.4;
+      cabCeil.castShadow = true;
+      carGroup.add(cabCeil);
+
+      // Slender Corner Pillars of the Cab
+      const cabColGeo = new THREE.BoxGeometry(0.1, 2.22, 0.1);
+      const cabPillarOffsets = [
+        [-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]
+      ];
+      cabPillarOffsets.forEach(([cx, cz]) => {
+        const p = new THREE.Mesh(cabColGeo, carFrameMat);
+        p.position.set(cx, 1.25, cz);
+        carGroup.add(p);
+      });
+
+      // Glass Walls of the Cab
+      const cabGlassMat = new THREE.MeshPhysicalMaterial({
+        color: CONFIG.colors.carGlass,
+        transparent: true,
+        opacity: 0.35,
+        roughness: 0.05,
+        transmission: 0.7,
+        ior: 1.45,
+        side: THREE.DoubleSide
+      });
+
+      const cabGlassBackGeo = new THREE.PlaneGeometry(1.6, 2.15);
+      const cabGlassBack = new THREE.Mesh(cabGlassBackGeo, cabGlassMat);
+      cabGlassBack.position.set(0, 1.25, -0.82);
+      carGroup.add(cabGlassBack);
+
+      const cabGlassSideGeo = new THREE.PlaneGeometry(1.6, 2.15);
+      const cabGlassL = new THREE.Mesh(cabGlassSideGeo, cabGlassMat);
+      cabGlassL.rotation.y = Math.PI / 2;
+      cabGlassL.position.set(-0.82, 1.25, 0);
+      carGroup.add(cabGlassL);
+
+      const cabGlassR = new THREE.Mesh(cabGlassSideGeo, cabGlassMat);
+      cabGlassR.rotation.y = -Math.PI / 2;
+      cabGlassR.position.set(0.82, 1.25, 0);
+      carGroup.add(cabGlassR);
+
+      // Sliding Bi-Parting Doors (Left and Right Leaves)
+      const doorMat = new THREE.MeshStandardMaterial({
+        color: CONFIG.colors.door,
+        metalness: 0.7,
+        roughness: 0.4
+      });
+      const doorLeafGeo = new THREE.BoxGeometry(0.75, 2.1, 0.06);
+
+      const doorLeft = new THREE.Mesh(doorLeafGeo, doorMat);
+      doorLeft.position.set(-0.38, 1.22, 0.82);
+      carGroup.add(doorLeft);
+
+      const doorRight = new THREE.Mesh(doorLeafGeo, doorMat);
+      doorRight.position.set(0.38, 1.22, 0.82);
+      carGroup.add(doorRight);
+
+      // Glowing Interior Cabin PointLight
+      const carLight = new THREE.PointLight(CONFIG.colors.carLight, 0.9, 5);
+      carLight.position.set(0, 2.1, 0);
+      carGroup.add(carLight);
+
+      // Car Hitch & Steel Suspension Cable above car
+      const cableGeo = new THREE.CylinderGeometry(0.03, 0.03, 1, 6);
+      cableGeo.translate(0, 0.5, 0); // Origin at bottom for clean scaling
+      const cableMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.cable, metalness: 0.9 });
+      const cable = new THREE.Mesh(cableGeo, cableMat);
+      cable.position.set(pos.x, 2.4, pos.z);
+      buildingGroup.add(cable);
+
+      // 6C. State Object for Elevator Car
+      const carState = {
+        id: pos.id,
+        name: pos.name,
+        index: idx,
+        group: carGroup,
+        cable: cable,
+        doorLeft: doorLeft,
+        doorRight: doorRight,
+        carLight: carLight,
+        speed: CONFIG.speeds[idx % CONFIG.speeds.length],
+        currentFloor: 0,
+        targetFloor: 0,
+        currentY: 0,
+        startY: 0,
+        targetY: 0,
+        status: 'IDLE', // 'IDLE' | 'MOVING' | 'OPENING_DOORS' | 'WAITING' | 'CLOSING_DOORS'
+        doorProgress: 0, // 0 = closed, 1 = fully open
+        moveTimer: 0,
+        moveDuration: 0,
+        waitTimer: 0,
+        queue: [],
+        highlighted: false
+      };
+
+      // Raycasting interaction anchor
+      cabFloor.userData = { isCar: true, carState: carState };
+      cabCeil.userData = { isCar: true, carState: carState };
+
+      elevatorCars.push(carState);
+    });
+
+    // ========================================================================
+    // 7. DISPATCH LOGIC (Nearest-Car Allocation)
+    // ========================================================================
+    function callFloor(targetFloor) {
+      audio.playClick();
+
+      // Find best available elevator (least busy / closest)
+      let bestCar = null;
+      let minDistance = 9999;
+
+      for (const car of elevatorCars) {
+        // Effective floor considering current target or destination
+        const dest = car.queue.length > 0 ? car.queue[car.queue.length - 1] : car.targetFloor;
+        const dist = Math.abs(dest - targetFloor) + (car.queue.length * 3);
+
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestCar = car;
+        }
+      }
+
+      if (bestCar) {
+        // Enqueue if not already targeting it
+        if (bestCar.currentFloor !== targetFloor || bestCar.status !== 'IDLE') {
+          if (!bestCar.queue.includes(targetFloor) && bestCar.targetFloor !== targetFloor) {
+            bestCar.queue.push(targetFloor);
+          }
+        }
+      }
+
+      updateUI();
+    }
+
+    // ========================================================================
+    // 8. UPDATE LOOP & ELEVATOR STATE MACHINE
+    // ========================================================================
+    const clock = new THREE.Clock();
+    let followCar = null; // Camera tracking reference
+
+    function updateElevatorStateMachine(car, dt) {
+      const floorY = car.currentFloor * CONFIG.floorHeight;
+
+      switch (car.status) {
+        case 'IDLE':
+          // Check for queued jobs
+          if (car.queue.length > 0) {
+            const nextFloor = car.queue.shift();
+            car.targetFloor = nextFloor;
+            car.startY = car.group.position.y;
+            car.targetY = nextFloor * CONFIG.floorHeight;
+            const distanceInFloors = Math.abs(nextFloor - car.currentFloor);
+
+            if (distanceInFloors === 0) {
+              car.status = 'OPENING_DOORS';
+            } else {
+              car.status = 'MOVING';
+              car.moveTimer = 0;
+              car.moveDuration = Math.max(1.0, distanceInFloors / car.speed);
+            }
+            updateUI();
+          }
+          break;
+
+        case 'MOVING':
+          car.moveTimer += dt;
+          const progress = Math.min(1.0, car.moveTimer / car.moveDuration);
+          const eased = easeInOutCubic(progress);
+
+          // Interpolate vertical height
+          car.group.position.y = car.startY + (car.targetY - car.startY) * eased;
+
+          // Estimate floor indicator during motion
+          car.currentFloor = Math.round(car.group.position.y / CONFIG.floorHeight);
+
+          if (progress >= 1.0) {
+            car.group.position.y = car.targetY;
+            car.currentFloor = car.targetFloor;
+            car.status = 'OPENING_DOORS';
+            audio.playChime();
+            updateUI();
+          }
+          break;
+
+        case 'OPENING_DOORS':
+          car.doorProgress += dt / CONFIG.doorOpenDuration;
+          if (car.doorProgress >= 1.0) {
+            car.doorProgress = 1.0;
+            car.status = 'WAITING';
+            car.waitTimer = 0;
+          }
+          applyDoorOffsets(car);
+          break;
+
+        case 'WAITING':
+          car.waitTimer += dt;
+          if (car.waitTimer >= CONFIG.doorWaitDuration) {
+            car.status = 'CLOSING_DOORS';
+          }
+          break;
+
+        case 'CLOSING_DOORS':
+          car.doorProgress -= dt / CONFIG.doorOpenDuration;
+          if (car.doorProgress <= 0) {
+            car.doorProgress = 0;
+            car.status = 'IDLE';
+            updateUI();
+          }
+          applyDoorOffsets(car);
+          break;
+      }
+
+      // Update Cable Length dynamically
+      const cableTop = CONFIG.totalHeight;
+      const carTop = car.group.position.y + 2.4;
+      const cableLength = Math.max(0.1, cableTop - carTop);
+      car.cable.position.y = carTop;
+      car.cable.scale.set(1, cableLength, 1);
+    }
+
+    function applyDoorOffsets(car) {
+      // 0.38 m slide travel for bi-parting door leaves
+      const slideDist = 0.36 * car.doorProgress;
+      car.doorLeft.position.x = -0.38 - slideDist;
+      car.doorRight.position.x = 0.38 + slideDist;
+    }
+
+    // ========================================================================
+    // 9. USER INTERFACE GENERATION & SYNC
+    // ========================================================================
+    const floorListElem = document.getElementById('floor-btn-list');
+    const fleetBarElem = document.getElementById('fleet-status-bar');
+
+    // Create Floor Call Buttons
+    for (let f = 0; f <= CONFIG.floors; f++) {
+      const btn = document.createElement('button');
+      btn.className = 'floor-call-btn';
+      btn.id = `floor-btn-${f}`;
+      btn.innerHTML = `<span>${f === 0 ? 'F0 (G)' : 'F' + f}</span><span class="btn-arrow">▲</span>`;
+      btn.addEventListener('click', () => callFloor(f));
+      floorListElem.appendChild(btn);
+    }
+
+    // Create Elevator Status Cards
+    elevatorCars.forEach(car => {
+      const card = document.createElement('div');
+      card.className = 'car-card';
+      card.id = `car-card-${car.id}`;
+      card.innerHTML = `
+        <div class="car-card-header">
+          <span class="car-card-title">${car.name}</span>
+          <span class="car-card-badge" id="car-badge-${car.id}">${car.speed}x</span>
+        </div>
+        <div class="car-card-floor" id="car-floor-${car.id}">F0</div>
+        <div class="car-card-state" id="car-state-${car.id}">IDLE</div>
+      `;
+      card.addEventListener('click', () => selectCar(car));
+      fleetBarElem.appendChild(card);
+    });
+
+    function selectCar(car) {
+      audio.playClick();
+      elevatorCars.forEach(c => {
+        c.highlighted = (c === car);
+        c.carLight.color.setHex(c.highlighted ? CONFIG.colors.selectedOutline : CONFIG.colors.carLight);
+        const card = document.getElementById(`car-card-${c.id}`);
+        if (card) card.classList.toggle('selected', c.highlighted);
+      });
+      followCar = car;
+    }
+
+    function updateUI() {
+      // Update floor call button highlights
+      for (let f = 0; f <= CONFIG.floors; f++) {
+        const btn = document.getElementById(`floor-btn-${f}`);
+        if (!btn) continue;
+        const isQueued = elevatorCars.some(c => c.queue.includes(f) || (c.targetFloor === f && c.status === 'MOVING'));
+        btn.classList.toggle('requested', isQueued);
+      }
+
+      // Update car cards
+      elevatorCars.forEach(car => {
+        const floorText = document.getElementById(`car-floor-${car.id}`);
+        const stateText = document.getElementById(`car-state-${car.id}`);
+        if (floorText) floorText.textContent = `F${car.currentFloor}`;
+        if (stateText) {
+          let label = car.status;
+          if (car.status === 'MOVING') {
+            const dir = car.targetFloor > car.currentFloor ? '▲ ASCENDING' : '▼ DESCENDING';
+            label = `${dir} → F${car.targetFloor}`;
+          } else if (car.status === 'WAITING' || car.status === 'OPENING_DOORS') {
+            label = 'DOORS OPEN';
+          }
+          stateText.textContent = label;
+        }
+      });
+    }
+
+    // Camera Auto-Rotate Toggle
+    const autoRotateBtn = document.getElementById('btn-auto-rotate');
+    autoRotateBtn.addEventListener('click', () => {
+      audio.playClick();
+      controls.autoRotate = !controls.autoRotate;
+      autoRotateBtn.classList.toggle('active', controls.autoRotate);
+    });
+
+    // Reset View Button
+    const resetCamBtn = document.getElementById('btn-reset-cam');
+    resetCamBtn.addEventListener('click', () => {
+      audio.playClick();
+      followCar = null;
+      elevatorCars.forEach(c => {
+        c.highlighted = false;
+        c.carLight.color.setHex(CONFIG.colors.carLight);
+        document.getElementById(`car-card-${c.id}`).classList.remove('selected');
+      });
+      camera.position.copy(initialCamPos);
+      controls.target.copy(initialTarget);
+      controls.autoRotate = true;
+      autoRotateBtn.classList.add('active');
+    });
+
+    // ========================================================================
+    // 10. RAYCASTING ON ELEVATOR CARS IN 3D
+    // ========================================================================
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    window.addEventListener('pointerdown', (e) => {
+      // Don't raycast if clicking UI elements
+      if (e.target.closest('.hud-header, .hud-top-actions, .floor-call-dock, .fleet-status-bar')) return;
+
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(buildingGroup.children, true);
+      for (const hit of intersects) {
+        if (hit.object.userData && hit.object.userData.isCar) {
+          selectCar(hit.object.userData.carState);
+          break;
+        }
+      }
+    });
+
+    // ========================================================================
+    // 11. MAIN ANIMATION LOOP
+    // ========================================================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = clock.getDelta();
+
+      // Entrance assembly animation
+      if (entranceProgress < 1.0) {
+        entranceProgress += dt * 0.85;
+        const ep = Math.min(1.0, entranceProgress);
+        buildingGroup.position.y = -CONFIG.totalHeight * 0.2 * (1 - easeInOutCubic(ep));
+      }
+
+      // Update elevator state machines
+      for (const car of elevatorCars) {
+        updateElevatorStateMachine(car, dt);
+      }
+
+      // Camera Follow mode when an elevator is selected
+      if (followCar) {
+        const carWorldPos = new THREE.Vector3();
+        followCar.group.getWorldPosition(carWorldPos);
+        carWorldPos.y += 1.2; // Focus on cab center
+        controls.target.lerp(carWorldPos, 0.08);
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // ========================================================================
+    // 12. RESPONSIVE RESIZE HANDLER
+    // ========================================================================
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    // Initial UI state render
+    updateUI();
+  </script>
+</body>
+</html>
