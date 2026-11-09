@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AEROVATOR 3D — Intelligent Elevator Group-Control & Dispatching Simulation</title>
+  <meta name="description" content="A self-contained 3D multi-car elevator group-control simulation with LOOK/SCAN dispatching, real passengers, and admin dashboard built in Three.js." />
+
+  <!-- Pinned Three.js and OrbitControls from cdnjs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       CSS STYLING - MODERN OBSIDIAN & GLASSMORPHISM HUD
+       ========================================================================== */
+    :root {
+      --bg-dark: #050811;
+      --bg-card: rgba(13, 20, 38, 0.78);
+      --bg-card-hover: rgba(22, 33, 60, 0.9);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.35);
+      --accent-cyan: #06b6d4;
+      --accent-blue: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-sans: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --panel-width: 400px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-dark); font-family: var(--font-sans); color: var(--text-main); }
+
+    /* WebGL Canvas */
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      outline: none;
+    }
+
+    /* Top Navigation / Quick Action Bar */
+    .top-bar {
+      position: absolute;
+      top: 14px;
+      left: 18px;
+      right: calc(var(--panel-width) + 24px);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+      transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .top-bar > * { pointer-events: auto; }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 12px var(--accent-emerald);
+      animation: pulse 1.8s infinite alternate;
+    }
+    @keyframes pulse { 0% { opacity: 0.5; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1.2); } }
+    .brand-title { font-size: 0.9rem; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+    .brand-title sup { color: var(--accent-cyan); font-size: 0.65rem; }
+
+    .sim-quick-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      padding: 5px 8px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .quick-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .quick-btn:hover { background: rgba(56, 189, 248, 0.15); border-color: var(--accent-blue); }
+    .quick-btn.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
+
+    /* Collapsible Right Sidebar Panel */
+    .sidebar-panel {
+      position: absolute;
+      top: 14px;
+      bottom: 14px;
+      right: 18px;
+      width: var(--panel-width);
+      z-index: 20;
+      background: var(--bg-card);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 18px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    .sidebar-panel.collapsed {
+      transform: translateX(calc(100% + 24px));
+    }
+
+    /* Toggle Button when collapsed */
+    .sidebar-toggle-btn {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      z-index: 15;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glow);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: none;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+    .sidebar-toggle-btn.visible { display: flex; align-items: center; gap: 8px; }
+
+    /* Tab Headers */
+    .panel-tabs {
+      display: flex;
+      background: rgba(8, 12, 24, 0.85);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 6px;
+      gap: 4px;
+    }
+    .panel-tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      font-family: var(--font-sans);
+      padding: 8px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    .panel-tab-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.04); }
+    .panel-tab-btn.active {
+      color: #fff;
+      background: rgba(56, 189, 248, 0.18);
+      box-shadow: inset 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+
+    /* Tab Content Area */
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .panel-content::-webkit-scrollbar { width: 5px; }
+    .panel-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+
+    .tab-pane { display: none; flex-direction: column; gap: 16px; }
+    .tab-pane.active { display: flex; }
+
+    /* Panel Components & Cards */
+    .glass-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Car Interior Panel UI */
+    .car-selector-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .car-select-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 7px 4px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .car-select-pill:hover, .car-select-pill.active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+
+    .car-display-screen {
+      background: #020612;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      margin-bottom: 12px;
+    }
+    .screen-floor { font-size: 1.8rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .screen-dir { font-size: 1.4rem; color: var(--accent-cyan); }
+    .screen-meta { text-align: right; font-size: 0.72rem; color: var(--text-dim); }
+    .screen-meta .status-val { font-weight: 700; color: var(--accent-emerald); }
+
+    /* In-Car Floor Buttons Grid (1 to 12) */
+    .interior-buttons-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .interior-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 10px 4px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .interior-btn:hover { background: rgba(56, 189, 248, 0.2); border-color: var(--accent-blue); }
+    .interior-btn.pressed {
+      background: rgba(245, 158, 11, 0.35);
+      border-color: var(--accent-amber);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+    }
+
+    .interior-door-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    .door-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 8px 4px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .door-btn.emergency {
+      background: rgba(244, 63, 94, 0.15);
+      border-color: rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+    }
+    .door-btn.emergency:hover { background: #f43f5e; color: #fff; }
+
+    /* Capacity Load Meter */
+    .load-meter-wrap { margin-top: 10px; }
+    .load-meter-bar {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .load-meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald));
+      transition: width 0.3s ease;
+    }
+
+    /* Dispatch Controls Form */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .form-label {
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .form-select, .form-range {
+      width: 100%;
+      background: rgba(10, 16, 32, 0.85);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      color: #fff;
+      padding: 8px 12px;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .form-select:focus { border-color: var(--accent-blue); }
+
+    /* Manual Hall Call Generator */
+    .manual-call-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .manual-call-btn {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+    .manual-call-btn.up:hover { background: rgba(16, 185, 129, 0.2); border-color: var(--accent-emerald); }
+    .manual-call-btn.down:hover { background: rgba(245, 158, 11, 0.2); border-color: var(--accent-amber); }
+
+    /* Admin Dashboard KPIs Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .kpi-card {
+      background: rgba(10, 16, 32, 0.85);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .kpi-val { font-size: 1.35rem; font-weight: 800; font-family: var(--font-mono); color: #fff; }
+    .kpi-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; font-family: var(--font-mono); }
+
+    /* Per-Elevator Table */
+    .fleet-table-wrap { overflow-x: auto; margin-top: 8px; }
+    table.fleet-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      text-align: left;
+    }
+    table.fleet-table th, table.fleet-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    table.fleet-table th { color: var(--text-dim); text-transform: uppercase; }
+
+    /* Real-Time Event Log */
+    .event-log-box {
+      height: 140px;
+      overflow-y: auto;
+      background: #02050f;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .log-line { color: var(--text-muted); line-height: 1.3; }
+    .log-line span.time { color: var(--text-dim); }
+    .log-line span.highlight { color: var(--accent-cyan); font-weight: 700; }
+    .log-line.warn { color: var(--accent-amber); }
+    .log-line.emg { color: var(--accent-rose); font-weight: 700; }
+
+    /* Canvas Charts */
+    .chart-container {
+      width: 100%;
+      height: 130px;
+      background: #02050e;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      position: relative;
+    }
+    .chart-canvas { width: 100%; height: 100%; }
+
+    /* Alerts Box */
+    .alerts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .alert-pill {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fde68a;
+      font-size: 0.72rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .alert-pill.danger {
+      background: rgba(244, 63, 94, 0.15);
+      border-color: rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+    }
+
+    /* Mobile Bottom Sheet Adaptation */
+    @media (max-width: 900px) {
+      .top-bar { right: 18px; }
+      .sidebar-panel {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        top: auto;
+        bottom: 10px;
+        height: 52vh;
+        transform: translateY(0);
+      }
+      .sidebar-panel.collapsed {
+        transform: translateY(calc(100% + 20px));
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- WebGL 3D Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Top Bar: Branding & Sim Controls -->
+  <div class="top-bar">
+    <div class="brand-badge">
+      <span class="status-dot"></span>
+      <span class="brand-title">AEROVATOR<sup>GROUP 3D</sup></span>
+    </div>
+
+    <div class="sim-quick-controls">
+      <button id="btn-play-pause" class="quick-btn active" title="Play/Pause Simulation">
+        <span id="play-pause-icon">⏸</span>
+        <span id="play-pause-text">Running</span>
+      </button>
+
+      <div style="display:flex; gap:2px;">
+        <button class="quick-btn active" data-speed="1">1x</button>
+        <button class="quick-btn" data-speed="2">2x</button>
+        <button class="quick-btn" data-speed="4">4x</button>
+      </div>
+
+      <button id="btn-auto-orbit" class="quick-btn active" title="Toggle Auto-Orbit Camera">Orbit</button>
+      <button id="btn-reset-view" class="quick-btn" title="Reset Viewpoint">Reset</button>
+      <button id="btn-open-sidebar" class="quick-btn" style="color:var(--accent-cyan); font-weight:700;">Open Panel ☰</button>
+    </div>
+  </div>
+
+  <!-- Collapsible Right Sidebar Panel -->
+  <aside class="sidebar-panel" id="sidebar-panel">
+    <!-- Tab Navigation -->
+    <div class="panel-tabs">
+      <button class="panel-tab-btn active" data-tab="car-panel">🛗 Car Interior</button>
+      <button class="panel-tab-btn" data-tab="dispatch-tab">⚙️ Dispatcher</button>
+      <button class="panel-tab-btn" data-tab="admin-tab">📊 Admin KPIs</button>
+      <button id="btn-close-sidebar" class="quick-btn" style="padding:4px 8px; border-radius:6px;" title="Collapse">✕</button>
+    </div>
+
+    <div class="panel-content">
+      <!-- ==================================================================
+           TAB 1: CAR INTERIOR PANEL
+           ================================================================== -->
+      <div class="tab-pane active" id="pane-car-panel">
+        <div class="glass-card">
+          <div class="card-title">
+            <span>Select Elevator Car</span>
+            <span id="selected-car-badge" style="color:var(--accent-blue);">CAR A</span>
+          </div>
+          <div class="car-selector-row" id="car-select-pills">
+            <!-- Populated dynamically: Car A, B, C, D -->
+          </div>
+
+          <!-- In-Car Digital Display Screen -->
+          <div class="car-display-screen">
+            <div class="screen-floor">
+              <span id="screen-floor-num">F1</span>
+              <span id="screen-dir-arrow" class="screen-dir">▲</span>
+            </div>
+            <div class="screen-meta">
+              <div>STATUS: <span id="screen-status-text" class="status-val">IDLE</span></div>
+              <div style="margin-top:2px;">LOAD: <span id="screen-load-count">0 / 8</span> PASSENGERS</div>
+            </div>
+          </div>
+
+          <!-- Passenger In-Car Floor Call Buttons (1 to 12) -->
+          <div style="font-size:0.7rem; font-family:var(--font-mono); color:var(--text-muted); margin-bottom:6px;">
+            IN-CAR DESTINATION BUTTONS (LIGHTS UP ON RIDER DEMAND)
+          </div>
+          <div class="interior-buttons-grid" id="interior-floor-buttons">
+            <!-- Populated 1 to 12 -->
+          </div>
+
+          <!-- Door Controls & Emergency Stop -->
+          <div class="interior-door-actions">
+            <button class="door-btn" id="btn-door-open">◀||▶ OPEN</button>
+            <button class="door-btn" id="btn-door-close">▶||◀ CLOSE</button>
+            <button class="door-btn emergency" id="btn-car-emergency">⚠ STOP</button>
+          </div>
+
+          <!-- Load Capacity Gauge -->
+          <div class="load-meter-wrap">
+            <div style="display:flex; justify-content:space-between; font-size:0.68rem; font-family:var(--font-mono); color:var(--text-dim);">
+              <span>CAB LOAD FACTOR</span>
+              <span id="load-factor-percent">0%</span>
+            </div>
+            <div class="load-meter-bar">
+              <div class="load-meter-fill" id="load-meter-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming Stops Schedule -->
+        <div class="glass-card">
+          <div class="card-title">Next Scheduled Stops</div>
+          <div id="car-stops-list" style="font-size:0.75rem; font-family:var(--font-mono); color:var(--text-muted);">
+            No pending stops.
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================================================================
+           TAB 2: DISPATCH CONTROLS & TRAFFIC PRESETS
+           ================================================================== -->
+      <div class="tab-pane" id="pane-dispatch-tab">
+        <div class="glass-card">
+          <div class="card-title">Group Dispatch Algorithm</div>
+          <div class="form-group">
+            <label class="form-label" for="select-algorithm">Active Dispatch Strategy</label>
+            <select class="form-select" id="select-algorithm">
+              <option value="look">SCAN / LOOK (Direction-Aware Sweep)</option>
+              <option value="nearest">Nearest Car (Shortest Distance)</option>
+              <option value="least_wait">Least Waiting Time (Cost/ETA Heuristic)</option>
+            </select>
+          </div>
+          <p id="algo-description" style="font-size:0.72rem; color:var(--text-dim); line-height:1.4;">
+            Maintains directional continuity, servicing all hall calls along its current trajectory before reversing.
+          </p>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title">Traffic Pattern Generator</div>
+          <div class="form-group">
+            <label class="form-label" for="select-traffic-preset">Simulation Traffic Profile</label>
+            <select class="form-select" id="select-traffic-preset">
+              <option value="normal">Normal Balanced Traffic</option>
+              <option value="morning_rush">Morning Rush (Ground → Upper Floors)</option>
+              <option value="evening_rush">Evening Rush (Upper Floors → Ground)</option>
+              <option value="heavy_random">Heavy Random Spikes</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between;">
+              <label class="form-label">Passenger Spawn Rate</label>
+              <span id="spawn-rate-val" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-cyan);">14 / min</span>
+            </div>
+            <input type="range" class="form-range" id="slider-spawn-rate" min="0" max="45" value="14" />
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title">Manual Lobby Hall Call Generator</div>
+          <div class="form-group">
+            <label class="form-label">Select Floor</label>
+            <select class="form-select" id="select-manual-floor">
+              <!-- Floors 1 to 12 -->
+            </select>
+          </div>
+          <div class="manual-call-row">
+            <button class="manual-call-btn up" id="btn-manual-call-up">▲ CALL UP</button>
+            <button class="manual-call-btn down" id="btn-manual-call-down">▼ CALL DOWN</button>
+          </div>
+        </div>
+
+        <!-- Active Hall Calls Assignment Roster -->
+        <div class="glass-card">
+          <div class="card-title">Active Hall Calls Queue</div>
+          <div id="active-calls-roster" style="font-size:0.72rem; font-family:var(--font-mono); color:var(--text-muted); display:flex; flex-direction:column; gap:4px;">
+            No pending hall calls.
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================================================================
+           TAB 3: ADMIN DASHBOARD & PERFORMANCE KPIS
+           ================================================================== -->
+      <div class="tab-pane" id="pane-admin-tab">
+        <!-- Live KPI Metric Cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-val" id="kpi-total-passengers">0</div>
+            <div class="kpi-label">Riders Served</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" id="kpi-avg-wait">0.0s</div>
+            <div class="kpi-label">Avg Wait Time</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" id="kpi-avg-travel">0.0s</div>
+            <div class="kpi-label">Avg Travel Time</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" id="kpi-max-wait">0.0s</div>
+            <div class="kpi-label">Max Wait Time</div>
+          </div>
+        </div>
+
+        <!-- System Alerts Box -->
+        <div class="glass-card">
+          <div class="card-title">System Status & Alerts</div>
+          <div class="alerts-container" id="alerts-container">
+            <div class="alert-pill">✓ All 4 elevator shafts operating within nominal parameters.</div>
+          </div>
+        </div>
+
+        <!-- Fleet Stats Table -->
+        <div class="glass-card">
+          <div class="card-title">Elevator Fleet Telemetry</div>
+          <div class="fleet-table-wrap">
+            <table class="fleet-table">
+              <thead>
+                <tr>
+                  <th>Lift</th>
+                  <th>Floor</th>
+                  <th>Dir</th>
+                  <th>Load</th>
+                  <th>Trips</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="fleet-table-body">
+                <!-- Rows for Lift A, B, C, D -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Canvas Chart: Busiest Floors Heatmap -->
+        <div class="glass-card">
+          <div class="card-title">Floor Traffic Demand (Departures)</div>
+          <div class="chart-container">
+            <canvas id="chart-floors" class="chart-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Canvas Chart: Average Wait Time Over Time -->
+        <div class="glass-card">
+          <div class="card-title">Wait Time Trend (Seconds)</div>
+          <div class="chart-container">
+            <canvas id="chart-waittime" class="chart-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Live Event Log -->
+        <div class="glass-card">
+          <div class="card-title">
+            <span>Timestamped Event Audit</span>
+            <span style="font-size:0.65rem; color:var(--text-dim);">LIVE STREAM</span>
+          </div>
+          <div class="event-log-box" id="event-log-box"></div>
+        </div>
+
+        <!-- Export & Reset Actions -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+          <button class="quick-btn" id="btn-export-csv" style="justify-content:center; color:var(--accent-emerald);">
+            📥 Export CSV Report
+          </button>
+          <button class="quick-btn" id="btn-reset-stats" style="justify-content:center; color:var(--accent-rose);">
+            ↺ Reset Statistics
+          </button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==========================================================================
+       JAVASCRIPT: SIMULATION ENGINE, 3D SCENE & DISPATCH CONTROLLER
+       ========================================================================== -->
+  <script>
+    // ========================================================================
+    // 1. CONFIGURATION OBJECT
+    // ========================================================================
+    const CONFIG = {
+      floors: 12,              // Total floors: 1 to 12
+      floorHeight: 3.2,        // World units per floor
+      numElevators: 4,         // 4 cars side by side in central bank
+      elevatorSpacing: 3.0,    // Center-to-center distance between shafts
+      carCapacity: 8,          // Max passenger count per car
+      carSpeed: 3.0,           // Floors per second
+      doorDuration: 0.65,      // Seconds to open or close
+      doorWaitTime: 1.4,       // Seconds doors stay open for boarding
+      passengerWalkSpeed: 2.5, // World units per second
+      buildingWidth: 26.0,     // Total X width
+      buildingDepth: 22.0,     // Total Z depth
+      lobbyZ: 3.0,             // Lobby corridor Z position
+      colors: {
+        skyTop: 0x050811,
+        skyBottom: 0x0e172a,
+        ground: 0x080d1a,
+        slab: 0x1b253b,
+        slabEdge: 0x38bdf8,
+        column: 0x2b3954,
+        glass: 0x38bdf8,
+        glassOpacity: 0.12,
+        carFrame: 0x0f172a,
+        carGlass: 0x67e8f9,
+        arrowUp: 0x10b981,     // Green ▲
+        arrowDown: 0xf59e0b,   // Orange ▼
+        arrowIdle: 0x64748b,   // Grey
+        cable: 0x64748b,
+        counterweight: 0xf59e0b,
+        hallPanel: 0x0f172a
+      }
+    };
+    CONFIG.totalHeight = CONFIG.floors * CONFIG.floorHeight;
+
+    // Helper: Cubic Ease In-Out
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    // ========================================================================
+    // 2. SIMULATION ENGINE (Decoupled from Three.js Rendering)
+    // ========================================================================
+    class SimulationEngine {
+      constructor() {
+        this.time = 0;
+        this.paused = false;
+        this.timeScale = 1.0;
+        this.algorithm = 'look'; // 'look' | 'nearest' | 'least_wait'
+        this.trafficPreset = 'normal';
+        this.spawnRatePerMin = 14;
+        this.nextSpawnTimer = 0;
+
+        // Shared Hall Call Panels (one per floor, UP and DOWN buttons)
+        this.hallCalls = [];
+        for (let f = 1; f <= CONFIG.floors; f++) {
+          this.hallCalls.push({
+            floor: f,
+            up: false,
+            down: false,
+            upAssignedTo: null,
+            downAssignedTo: null,
+            upTimestamp: 0,
+            downTimestamp: 0
+          });
+        }
+
+        // Elevators
+        this.elevators = [];
+        const labels = ['LIFT A', 'LIFT B', 'LIFT C', 'LIFT D'];
+        for (let i = 0; i < CONFIG.numElevators; i++) {
+          this.elevators.push({
+            id: i,
+            label: labels[i],
+            currentFloor: 1,
+            preciseY: 0,
+            direction: 'IDLE', // 'UP' | 'DOWN' | 'IDLE'
+            status: 'IDLE',    // 'IDLE' | 'MOVING' | 'DOORS_OPENING' | 'DOORS_OPEN' | 'DOORS_CLOSING' | 'OUT_OF_SERVICE' | 'EMERGENCY'
+            inService: true,
+            passengers: [],
+            carCalls: new Set(),
+            targetQueue: [],
+            doorProgress: 0, // 0 = closed, 1 = open
+            doorTimer: 0,
+            moveTimer: 0,
+            moveDuration: 0,
+            startY: 0,
+            targetY: 0,
+            stats: {
+              trips: 0,
+              distanceFloors: 0,
+              doorCycles: 0,
+              passengersServed: 0,
+              movingTime: 0,
+              idleTime: 0
+            }
+          });
+        }
+
+        // Passenger entities
+        this.passengers = [];
+        this.passengerIdCounter = 1;
+
+        // Analytics KPIs
+        this.kpi = {
+          totalServed: 0,
+          totalWaitTime: 0,
+          totalTravelTime: 0,
+          maxWaitTime: 0,
+          currentWaitQueue: 0,
+          waitTimeHistory: [],
+          floorDemand: new Array(CONFIG.floors + 1).fill(0)
+        };
+
+        this.eventLogs = [];
+        this.selectedCarIndex = 0;
+      }
+
+      log(msg, type = 'normal') {
+        const timeStr = new Date().toLocaleTimeString();
+        this.eventLogs.unshift({ time: timeStr, text: msg, type });
+        if (this.eventLogs.length > 50) this.eventLogs.pop();
+        updateEventLogUI();
+      }
+
+      setAlgorithm(algo) {
+        this.algorithm = algo;
+        this.log(`Group Dispatch algorithm switched to: ${algo.toUpperCase()}`, 'normal');
+        this.reassignAllHallCalls();
+      }
+
+      // Hall Call Request
+      pressHallCall(floor, dir) {
+        if (floor < 1 || floor > CONFIG.floors) return;
+        if (floor === 1 && dir === 'DOWN') return; // Floor 1 only has UP
+        if (floor === CONFIG.floors && dir === 'UP') return; // Top floor only has DOWN
+
+        const call = this.hallCalls[floor - 1];
+        if (dir === 'UP' && !call.up) {
+          call.up = true;
+          call.upTimestamp = this.time;
+          this.log(`Hall Call registered: Floor ${floor} ▲ UP`, 'normal');
+          this.assignHallCall(floor, 'UP');
+        } else if (dir === 'DOWN' && !call.down) {
+          call.down = true;
+          call.downTimestamp = this.time;
+          this.log(`Hall Call registered: Floor ${floor} ▼ DOWN`, 'normal');
+          this.assignHallCall(floor, 'DOWN');
+        }
+      }
+
+      clearHallCall(floor, dir) {
+        const call = this.hallCalls[floor - 1];
+        if (dir === 'UP' && call.up) {
+          call.up = false;
+          call.upAssignedTo = null;
+        }
+        if (dir === 'DOWN' && call.down) {
+          call.down = false;
+          call.downAssignedTo = null;
+        }
+      }
+
+      // Group Dispatcher
+      assignHallCall(floor, dir) {
+        let bestElevator = null;
+        let lowestCost = 999999;
+
+        for (const elev of this.elevators) {
+          if (!elev.inService || elev.status === 'OUT_OF_SERVICE' || elev.status === 'EMERGENCY') {
+            continue;
+          }
+
+          let cost = 0;
+          const currentF = elev.currentFloor;
+          const passengerCount = elev.passengers.length;
+
+          // Cost Heuristic 1: Nearest Car
+          if (this.algorithm === 'nearest') {
+            cost = Math.abs(currentF - floor) * 10 + (elev.status !== 'IDLE' ? 15 : 0) + (passengerCount * 5);
+          }
+          // Cost Heuristic 2: SCAN / LOOK Algorithm (Direction-aware)
+          else if (this.algorithm === 'look') {
+            if (elev.direction === 'IDLE') {
+              cost = Math.abs(currentF - floor) * 10;
+            } else if (elev.direction === 'UP') {
+              if (floor >= currentF && dir === 'UP') {
+                cost = (floor - currentF) * 10; // On the way (Golden Path)
+              } else if (floor >= currentF && dir === 'DOWN') {
+                cost = (CONFIG.floors - currentF) * 10 + (CONFIG.floors - floor) * 10 + 20;
+              } else {
+                // Already passed
+                cost = (CONFIG.floors - currentF) * 10 + CONFIG.floors * 10 + (floor - 1) * 10 + 40;
+              }
+            } else if (elev.direction === 'DOWN') {
+              if (floor <= currentF && dir === 'DOWN') {
+                cost = (currentF - floor) * 10; // On the way
+              } else if (floor <= currentF && dir === 'UP') {
+                cost = (currentF - 1) * 10 + (floor - 1) * 10 + 20;
+              } else {
+                cost = (currentF - 1) * 10 + CONFIG.floors * 10 + (CONFIG.floors - floor) * 10 + 40;
+              }
+            }
+            cost += passengerCount * 4;
+          }
+          // Cost Heuristic 3: Least Waiting Time (Estimated ETA + Stops + Queue)
+          else if (this.algorithm === 'least_wait') {
+            const distance = Math.abs(currentF - floor);
+            const stopsEnRoute = elev.targetQueue.length + (elev.carCalls.size);
+            const loadPenalty = (passengerCount >= CONFIG.carCapacity) ? 1000 : (passengerCount * 8);
+            cost = (distance * 3.5) + (stopsEnRoute * 4) + loadPenalty;
+          }
+
+          if (cost < lowestCost) {
+            lowestCost = cost;
+            bestElevator = elev;
+          }
+        }
+
+        if (bestElevator) {
+          const call = this.hallCalls[floor - 1];
+          if (dir === 'UP') call.upAssignedTo = bestElevator.id;
+          else call.downAssignedTo = bestElevator.id;
+
+          // Add to targetQueue if not already in route
+          if (!bestElevator.targetQueue.includes(floor)) {
+            bestElevator.targetQueue.push(floor);
+          }
+          this.log(`${bestElevator.label} assigned to Floor ${floor} (${dir}) [Cost: ${Math.round(lowestCost)}]`, 'normal');
+        }
+      }
+
+      reassignAllHallCalls() {
+        for (const call of this.hallCalls) {
+          if (call.up) this.assignHallCall(call.floor, 'UP');
+          if (call.down) this.assignHallCall(call.floor, 'DOWN');
+        }
+      }
+
+      // Spawn Passenger
+      spawnPassenger(startFloor = null, destFloor = null) {
+        if (!startFloor || !destFloor) {
+          if (this.trafficPreset === 'morning_rush') {
+            startFloor = (Math.random() < 0.75) ? 1 : Math.floor(Math.random() * (CONFIG.floors - 1)) + 2;
+            destFloor = Math.floor(Math.random() * (CONFIG.floors - 1)) + 2;
+            if (startFloor === destFloor) destFloor = (startFloor === 1 ? 2 : 1);
+          } else if (this.trafficPreset === 'evening_rush') {
+            startFloor = Math.floor(Math.random() * (CONFIG.floors - 1)) + 2;
+            destFloor = (Math.random() < 0.8) ? 1 : Math.floor(Math.random() * CONFIG.floors) + 1;
+            if (startFloor === destFloor) destFloor = 1;
+          } else {
+            // Normal / Random
+            startFloor = Math.floor(Math.random() * CONFIG.floors) + 1;
+            destFloor = Math.floor(Math.random() * CONFIG.floors) + 1;
+            while (destFloor === startFloor) {
+              destFloor = Math.floor(Math.random() * CONFIG.floors) + 1;
+            }
+          }
+        }
+
+        const dir = destFloor > startFloor ? 'UP' : 'DOWN';
+        const passenger = {
+          id: this.passengerIdCounter++,
+          startFloor,
+          destFloor,
+          direction: dir,
+          state: 'WAITING', // 'WAITING' | 'BOARDING' | 'RIDING' | 'EXITING' | 'SERVED'
+          spawnTime: this.time,
+          boardTime: 0,
+          exitTime: 0,
+          carId: null,
+          posX: -8.0 - Math.random() * 3.0, // Lobby waiting queue position
+          posZ: CONFIG.lobbyZ + (Math.random() - 0.5) * 1.5,
+          targetX: 0,
+          targetZ: 0,
+          mesh: null
+        };
+
+        this.passengers.push(passenger);
+        this.kpi.floorDemand[startFloor]++;
+        this.pressHallCall(startFloor, dir);
+        createPassenger3DMesh(passenger);
+      }
+
+      // Main Step Update
+      update(dt) {
+        if (this.paused) return;
+        const effectiveDt = dt * this.timeScale;
+        this.time += effectiveDt;
+
+        // Auto Passenger Spawner
+        if (this.spawnRatePerMin > 0) {
+          this.nextSpawnTimer -= effectiveDt;
+          if (this.nextSpawnTimer <= 0) {
+            this.spawnPassenger();
+            const interval = 60 / this.spawnRatePerMin;
+            this.nextSpawnTimer = interval * (0.6 + Math.random() * 0.8);
+          }
+        }
+
+        // Update Elevators
+        for (const elev of this.elevators) {
+          this.updateElevator(elev, effectiveDt);
+        }
+
+        // Update Passengers
+        this.updatePassengers(effectiveDt);
+
+        // Update KPIs
+        let waitingCount = 0;
+        let maxWait = 0;
+        for (const p of this.passengers) {
+          if (p.state === 'WAITING') {
+            waitingCount++;
+            const w = this.time - p.spawnTime;
+            if (w > maxWait) maxWait = w;
+          }
+        }
+        this.kpi.currentWaitQueue = waitingCount;
+        this.kpi.maxWaitTime = Math.max(this.kpi.maxWaitTime, maxWait);
+      }
+
+      updateElevator(elev, dt) {
+        if (!elev.inService || elev.status === 'OUT_OF_SERVICE' || elev.status === 'EMERGENCY') {
+          return;
+        }
+
+        switch (elev.status) {
+          case 'IDLE':
+            elev.stats.idleTime += dt;
+            elev.direction = 'IDLE';
+
+            // Pick next target from queue or in-car calls
+            if (elev.targetQueue.length > 0 || elev.carCalls.size > 0) {
+              let nextTarget = null;
+              if (elev.carCalls.size > 0) {
+                // Priority to riders inside
+                nextTarget = Array.from(elev.carCalls)[0];
+              } else {
+                nextTarget = elev.targetQueue.shift();
+              }
+
+              if (nextTarget === elev.currentFloor) {
+                elev.status = 'DOORS_OPENING';
+                elev.doorTimer = 0;
+              } else {
+                elev.status = 'MOVING';
+                elev.startY = (elev.currentFloor - 1) * CONFIG.floorHeight;
+                elev.targetY = (nextTarget - 1) * CONFIG.floorHeight;
+                elev.direction = nextTarget > elev.currentFloor ? 'UP' : 'DOWN';
+                const distFloors = Math.abs(nextTarget - elev.currentFloor);
+                elev.moveDuration = distFloors / (CONFIG.carSpeed / CONFIG.floorHeight);
+                elev.moveTimer = 0;
+                elev.stats.trips++;
+                elev.stats.distanceFloors += distFloors;
+              }
+            }
+            break;
+
+          case 'MOVING':
+            elev.stats.movingTime += dt;
+            elev.moveTimer += dt;
+            const progress = Math.min(1.0, elev.moveTimer / elev.moveDuration);
+            const easedProgress = easeInOutCubic(progress);
+
+            elev.preciseY = elev.startY + (elev.targetY - elev.startY) * easedProgress;
+            elev.currentFloor = Math.round(elev.preciseY / CONFIG.floorHeight) + 1;
+
+            // Check if we should stop at intermediate floors for passengers inside or hall calls on the way!
+            if (progress >= 1.0) {
+              elev.preciseY = elev.targetY;
+              elev.currentFloor = Math.round(elev.targetY / CONFIG.floorHeight) + 1;
+              elev.carCalls.delete(elev.currentFloor);
+              this.clearHallCall(elev.currentFloor, elev.direction);
+              elev.status = 'DOORS_OPENING';
+              elev.doorTimer = 0;
+              elev.stats.doorCycles++;
+              this.log(`${elev.label} arrived at Floor ${elev.currentFloor}.`, 'normal');
+            }
+            break;
+
+          case 'DOORS_OPENING':
+            elev.doorTimer += dt;
+            elev.doorProgress = Math.min(1.0, elev.doorTimer / CONFIG.doorDuration);
+            if (elev.doorProgress >= 1.0) {
+              elev.status = 'DOORS_OPEN';
+              elev.doorTimer = 0;
+              // Clear hall call at this floor
+              this.clearHallCall(elev.currentFloor, elev.direction);
+            }
+            break;
+
+          case 'DOORS_OPEN':
+            elev.doorTimer += dt;
+            // Let passengers board / exit
+            if (elev.doorTimer >= CONFIG.doorWaitTime) {
+              elev.status = 'DOORS_CLOSING';
+              elev.doorTimer = 0;
+            }
+            break;
+
+          case 'DOORS_CLOSING':
+            elev.doorTimer += dt;
+            elev.doorProgress = Math.max(0, 1.0 - (elev.doorTimer / CONFIG.doorDuration));
+            if (elev.doorProgress <= 0) {
+              elev.status = 'IDLE';
+              elev.doorProgress = 0;
+            }
+            break;
+        }
+      }
+
+      updatePassengers(dt) {
+        for (let i = this.passengers.length - 1; i >= 0; i--) {
+          const p = this.passengers[i];
+
+          // 1. Waiting at Lobby
+          if (p.state === 'WAITING') {
+            // Check if any car has doors open at passenger's start floor matching direction
+            for (const elev of this.elevators) {
+              if (elev.currentFloor === p.startFloor && (elev.status === 'DOORS_OPEN' || elev.status === 'DOORS_OPENING')) {
+                if (elev.passengers.length < CONFIG.carCapacity) {
+                  // Board this elevator!
+                  p.state = 'BOARDING';
+                  p.carId = elev.id;
+                  p.boardTime = this.time;
+                  elev.passengers.push(p);
+                  elev.carCalls.add(p.destFloor);
+
+                  // Calculate wait time
+                  const waitTime = p.boardTime - p.spawnTime;
+                  this.kpi.totalWaitTime += waitTime;
+                  this.kpi.waitTimeHistory.push({ time: this.time, wait: waitTime });
+
+                  // Set walk target into the elevator cab
+                  const shaftX = (elev.id - 1.5) * CONFIG.elevatorSpacing;
+                  p.targetX = shaftX + (Math.random() - 0.5) * 1.0;
+                  p.targetZ = 0; // Inside cab
+                  this.log(`Passenger #${p.id} boarded ${elev.label} for Floor ${p.destFloor}`, 'normal');
+                  break;
+                }
+              }
+            }
+          }
+
+          // 2. Walking / Boarding into the Car
+          else if (p.state === 'BOARDING') {
+            // Animate walking towards targetX, targetZ
+            const dx = p.targetX - p.posX;
+            const dz = p.targetZ - p.posZ;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < 0.2) {
+              p.state = 'RIDING';
+            } else {
+              p.posX += (dx / dist) * CONFIG.passengerWalkSpeed * dt;
+              p.posZ += (dz / dist) * CONFIG.passengerWalkSpeed * dt;
+            }
+          }
+
+          // 3. Riding inside the elevator
+          else if (p.state === 'RIDING') {
+            const elev = this.elevators[p.carId];
+            if (elev) {
+              p.posX = (elev.id - 1.5) * CONFIG.elevatorSpacing;
+              p.posZ = 0;
+
+              // Check if arrived at destination floor and doors are open
+              if (elev.currentFloor === p.destFloor && (elev.status === 'DOORS_OPEN' || elev.status === 'DOORS_OPENING')) {
+                p.state = 'EXITING';
+                p.exitTime = this.time;
+                p.targetX = 9.0 + Math.random() * 2.0; // Walk out to right side of floor
+                p.targetZ = CONFIG.lobbyZ + (Math.random() - 0.5) * 1.5;
+
+                // Remove from car
+                const idx = elev.passengers.indexOf(p);
+                if (idx !== -1) elev.passengers.splice(idx, 1);
+
+                // Record travel time
+                const travelTime = p.exitTime - p.boardTime;
+                this.kpi.totalTravelTime += travelTime;
+                this.kpi.totalServed++;
+                elev.stats.passengersServed++;
+                this.log(`Passenger #${p.id} exited at Floor ${p.destFloor} from ${elev.label}`, 'normal');
+              }
+            }
+          }
+
+          // 4. Exiting & walking out of the building
+          else if (p.state === 'EXITING') {
+            const dx = p.targetX - p.posX;
+            const dz = p.targetZ - p.posZ;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < 0.3) {
+              p.state = 'SERVED';
+              // Remove 3D mesh
+              if (p.mesh) {
+                scene.remove(p.mesh);
+                p.mesh.geometry.dispose();
+              }
+              this.passengers.splice(i, 1);
+            } else {
+              p.posX += (dx / dist) * CONFIG.passengerWalkSpeed * dt;
+              p.posZ += (dz / dist) * CONFIG.passengerWalkSpeed * dt;
+            }
+          }
+        }
+      }
+    }
+
+    const sim = new SimulationEngine();
+
+    // ========================================================================
+    // 3. THREE.JS 3D SCENE & ASSETS
+    // ========================================================================
+    const canvas = document.getElementById('webgl-canvas');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(CONFIG.colors.skyTop);
+    scene.fog = new THREE.FogExp2(CONFIG.colors.skyTop, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 300);
+    const initialCamPos = new THREE.Vector3(22, 28, 38);
+    const initialTarget = new THREE.Vector3(0, CONFIG.totalHeight * 0.45, CONFIG.lobbyZ * 0.5);
+    camera.position.copy(initialCamPos);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.02;
+    controls.minDistance = 10;
+    controls.maxDistance = 120;
+    controls.target.copy(initialTarget);
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.6;
+
+    // Lighting
+    scene.add(new THREE.HemisphereLight(0xe2e8f0, 0x090d16, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(30, 50, 35);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 140;
+    const shadowSize = 35;
+    dirLight.shadow.camera.left = -shadowSize;
+    dirLight.shadow.camera.right = shadowSize;
+    dirLight.shadow.camera.top = shadowSize;
+    dirLight.shadow.camera.bottom = -shadowSize;
+    scene.add(dirLight);
+
+    const blueFill = new THREE.DirectionalLight(0x38bdf8, 0.4);
+    blueFill.position.set(-30, 25, -20);
+    scene.add(blueFill);
+
+    // Ground Plane with grid
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(180, 180),
+      new THREE.MeshStandardMaterial({ color: CONFIG.colors.ground, roughness: 0.85 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    scene.add(new THREE.GridHelper(140, 70, 0x1e293b, 0x0f172a));
+
+    // ========================================================================
+    // 4. BUILDING GEOMETRY (Cutaway Slabs, Central Bank, Lobby)
+    // ========================================================================
+    const buildingGroup = new THREE.Group();
+    scene.add(buildingGroup);
+
+    // Shared Materials
+    const slabMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.slab, roughness: 0.4, metalness: 0.6 });
+    const edgeMat = new THREE.MeshBasicMaterial({ color: CONFIG.colors.slabEdge });
+    const colMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.column, roughness: 0.4, metalness: 0.8 });
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: CONFIG.colors.glass,
+      transparent: true,
+      opacity: CONFIG.colors.glassOpacity,
+      roughness: 0.05,
+      transmission: 0.7,
+      ior: 1.45,
+      side: THREE.DoubleSide
+    });
+
+    // Texture Generator for Floor Numbers
+    function createFloorCanvasTexture(num) {
+      const cvs = document.createElement('canvas');
+      cvs.width = 256; cvs.height = 128;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = 'rgba(10, 16, 32, 0.9)';
+      ctx.fillRect(0, 0, cvs.width, cvs.height);
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(4, 4, cvs.width - 8, cvs.height - 8);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 50px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`FLOOR ${num}`, cvs.width / 2, cvs.height / 2);
+      return new THREE.CanvasTexture(cvs);
+    }
+
+    // 4A. Floor Slabs & Shared Hall Panels
+    const slabGeo = new THREE.BoxGeometry(CONFIG.buildingWidth, 0.35, CONFIG.buildingDepth);
+    const hallPanelMeshes = [];
+
+    for (let f = 1; f <= CONFIG.floors; f++) {
+      const y = (f - 1) * CONFIG.floorHeight;
+
+      // Slab
+      const slab = new THREE.Mesh(slabGeo, slabMat);
+      slab.position.set(0, y, 0);
+      slab.receiveShadow = true;
+      slab.castShadow = true;
+      buildingGroup.add(slab);
+
+      // Edge Glow
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(CONFIG.buildingWidth + 0.1, 0.08, CONFIG.buildingDepth + 0.1), edgeMat);
+      edge.position.set(0, y - 0.12, 0);
+      buildingGroup.add(edge);
+
+      // Signboard
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), new THREE.MeshBasicMaterial({ map: createFloorCanvasTexture(f), transparent: true, side: THREE.DoubleSide }));
+      sign.position.set(-10, y + 1.4, CONFIG.buildingDepth / 2 + 0.02);
+      buildingGroup.add(sign);
+
+      // Lobby Ambient Floor Light
+      const floorLight = new THREE.PointLight(0x38bdf8, 0.45, 14);
+      floorLight.position.set(0, y + 2.0, CONFIG.lobbyZ);
+      buildingGroup.add(floorLight);
+
+      // Shared Hall Call Panel on lobby wall between shafts
+      const panelGroup = new THREE.Group();
+      panelGroup.position.set(0, y + 1.3, 1.6); // Front lobby separator wall
+
+      const panelBox = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.1), new THREE.MeshStandardMaterial({ color: CONFIG.colors.hallPanel }));
+      panelGroup.add(panelBox);
+
+      // Up button mesh
+      const upBtnMat = new THREE.MeshBasicMaterial({ color: 0x475569 });
+      const upBtn = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.12), upBtnMat);
+      upBtn.position.set(0, 0.25, 0.02);
+      panelGroup.add(upBtn);
+
+      // Down button mesh
+      const downBtnMat = new THREE.MeshBasicMaterial({ color: 0x475569 });
+      const downBtn = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.12), downBtnMat);
+      downBtn.position.set(0, -0.25, 0.02);
+      panelGroup.add(downBtn);
+
+      buildingGroup.add(panelGroup);
+      hallPanelMeshes.push({ floor: f, group: panelGroup, upBtnMat, downBtnMat });
+    }
+
+    // Top Roof Slab
+    const roofSlab = new THREE.Mesh(slabGeo, slabMat);
+    roofSlab.position.set(0, CONFIG.totalHeight, 0);
+    roofSlab.castShadow = true;
+    buildingGroup.add(roofSlab);
+
+    // Rear & Left Outer Glass Walls (Cutaway on Front & Right so interior lobby is open)
+    const glassBack = new THREE.Mesh(new THREE.PlaneGeometry(CONFIG.buildingWidth, CONFIG.totalHeight), glassMat);
+    glassBack.position.set(0, CONFIG.totalHeight / 2, -CONFIG.buildingDepth / 2);
+    buildingGroup.add(glassBack);
+
+    const glassLeft = new THREE.Mesh(new THREE.PlaneGeometry(CONFIG.buildingDepth, CONFIG.totalHeight), glassMat);
+    glassLeft.rotation.y = Math.PI / 2;
+    glassLeft.position.set(-CONFIG.buildingWidth / 2, CONFIG.totalHeight / 2, 0);
+    buildingGroup.add(glassLeft);
+
+    // ========================================================================
+    // 5. FOUR ELEVATORS (CENTRAL BANK, SIDE BY SIDE)
+    // ========================================================================
+    const elevatorMeshes = [];
+
+    sim.elevators.forEach(elev => {
+      const shaftX = (elev.id - 1.5) * CONFIG.elevatorSpacing;
+
+      // Shaft Guide Rails
+      const railMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9, roughness: 0.3 });
+      const railL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, CONFIG.totalHeight + 0.5, 8), railMat);
+      railL.position.set(shaftX - 1.1, CONFIG.totalHeight / 2, 0);
+      buildingGroup.add(railL);
+
+      const railR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, CONFIG.totalHeight + 0.5, 8), railMat);
+      railR.position.set(shaftX + 1.1, CONFIG.totalHeight / 2, 0);
+      buildingGroup.add(railR);
+
+      // Shaft Vertical Tick-Mark Ruler on back wall
+      const rulerGeo = new THREE.PlaneGeometry(0.4, CONFIG.totalHeight);
+      const rulerCvs = document.createElement('canvas');
+      rulerCvs.width = 64; rulerCvs.height = 1024;
+      const rctx = rulerCvs.getContext('2d');
+      rctx.fillStyle = 'rgba(15,23,42,0.6)'; rctx.fillRect(0,0,64,1024);
+      rctx.strokeStyle = 'rgba(56,189,248,0.5)'; rctx.lineWidth = 2;
+      for (let i = 0; i < 1024; i += 16) {
+        rctx.beginPath();
+        rctx.moveTo(0, i);
+        rctx.lineTo(i % 64 === 0 ? 32 : 16, i);
+        rctx.stroke();
+      }
+      const rulerTex = new THREE.CanvasTexture(rulerCvs);
+      const rulerMesh = new THREE.Mesh(rulerGeo, new THREE.MeshBasicMaterial({ map: rulerTex, transparent: true }));
+      rulerMesh.position.set(shaftX, CONFIG.totalHeight / 2, -1.25);
+      buildingGroup.add(rulerMesh);
+
+      // Elevator Car Group
+      const carGroup = new THREE.Group();
+      carGroup.position.set(shaftX, 0, 0);
+      buildingGroup.add(carGroup);
+
+      // Frame Material
+      const frameMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.carFrame, metalness: 0.85, roughness: 0.3 });
+      const cabBase = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.2, 2.1), frameMat);
+      cabBase.position.y = 0.1;
+      cabBase.castShadow = true;
+      carGroup.add(cabBase);
+
+      const cabCeil = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.2, 2.1), frameMat);
+      cabCeil.position.y = 2.5;
+      cabCeil.castShadow = true;
+      carGroup.add(cabCeil);
+
+      // Glass Enclosure
+      const cGlassMat = new THREE.MeshPhysicalMaterial({ color: CONFIG.colors.carGlass, transparent: true, opacity: 0.45, transmission: 0.75, side: THREE.DoubleSide });
+      const gBack = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 2.2), cGlassMat);
+      gBack.position.set(0, 1.3, -1.02);
+      carGroup.add(gBack);
+
+      const gLeft = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 2.2), cGlassMat);
+      gLeft.rotation.y = Math.PI / 2;
+      gLeft.position.set(-1.02, 1.3, 0);
+      carGroup.add(gLeft);
+
+      const gRight = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 2.2), cGlassMat);
+      gRight.rotation.y = -Math.PI / 2;
+      gRight.position.set(1.02, 1.3, 0);
+      carGroup.add(gRight);
+
+      // Sliding Bi-Parting Doors (facing lobby at +Z)
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.3 });
+      const doorL = new THREE.Mesh(new THREE.BoxGeometry(0.85, 2.2, 0.05), doorMat);
+      doorL.position.set(-0.45, 1.3, 1.02);
+      carGroup.add(doorL);
+
+      const doorR = new THREE.Mesh(new THREE.BoxGeometry(0.85, 2.2, 0.05), doorMat);
+      doorR.position.set(0.45, 1.3, 1.02);
+      carGroup.add(doorR);
+
+      // Glowing Direction Arrow on top of the car (Cone: up or down)
+      const arrowGeo = new THREE.ConeGeometry(0.3, 0.6, 8);
+      const arrowMat = new THREE.MeshBasicMaterial({ color: CONFIG.colors.arrowIdle });
+      const arrowMesh = new THREE.Mesh(arrowGeo, arrowMat);
+      arrowMesh.position.set(0, 2.9, 0);
+      carGroup.add(arrowMesh);
+
+      // Interior Cabin PointLight
+      const carLight = new THREE.PointLight(0x38bdf8, 1.0, 6);
+      carLight.position.set(0, 2.2, 0);
+      carGroup.add(carLight);
+
+      // Motion Trail / Glow Bar under the car
+      const trailGeo = new THREE.PlaneGeometry(1.8, 1.5);
+      const trailMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.0, side: THREE.DoubleSide });
+      const trailMesh = new THREE.Mesh(trailGeo, trailMat);
+      trailMesh.rotation.x = Math.PI / 2;
+      trailMesh.position.set(0, 0.02, 0);
+      carGroup.add(trailMesh);
+
+      // Suspension Cables
+      const cableGeo = new THREE.CylinderGeometry(0.025, 0.025, 1, 6);
+      cableGeo.translate(0, 0.5, 0);
+      const cable = new THREE.Mesh(cableGeo, new THREE.MeshStandardMaterial({ color: CONFIG.colors.cable, metalness: 0.9 }));
+      cable.position.set(shaftX, 2.5, 0);
+      buildingGroup.add(cable);
+
+      // Moving Counterweight (At rear -Z of shaft, moving opposite to car)
+      const cwGeo = new THREE.BoxGeometry(1.4, 1.8, 0.25);
+      const cwMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.counterweight, metalness: 0.8 });
+      const counterweight = new THREE.Mesh(cwGeo, cwMat);
+      counterweight.position.set(shaftX, CONFIG.totalHeight - 2, -1.1);
+      buildingGroup.add(counterweight);
+
+      // Raycasting anchor
+      cabBase.userData = { isElevator: true, elevId: elev.id };
+      cabCeil.userData = { isElevator: true, elevId: elev.id };
+
+      elevatorMeshes.push({
+        id: elev.id,
+        group: carGroup,
+        doorL, doorR,
+        arrowMesh, arrowMat,
+        carLight,
+        cable,
+        counterweight,
+        trailMat
+      });
+    });
+
+    // ========================================================================
+    // 6. PASSENGER 3D FIGURES
+    // ========================================================================
+    function createPassenger3DMesh(p) {
+      const pGroup = new THREE.Group();
+
+      // Capsule torso
+      const bodyGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.7, 8);
+      const colors = [0x38bdf8, 0x10b981, 0xf59e0b, 0xec4899, 0xa855f7];
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: colors[p.id % colors.length],
+        roughness: 0.6
+      });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.y = 0.55;
+      body.castShadow = true;
+      pGroup.add(body);
+
+      // Head
+      const headGeo = new THREE.SphereGeometry(0.18, 8, 8);
+      const headMat = new THREE.MeshStandardMaterial({ color: 0xffedd5, roughness: 0.5 });
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.position.y = 1.05;
+      head.castShadow = true;
+      pGroup.add(head);
+
+      const y = (p.startFloor - 1) * CONFIG.floorHeight;
+      pGroup.position.set(p.posX, y, p.posZ);
+      scene.add(pGroup);
+      p.mesh = pGroup;
+    }
+
+    // ========================================================================
+    // 7. USER INTERFACE GENERATION & EVENT LISTENERS
+    // ========================================================================
+    // Tab switching
+    const tabBtns = document.querySelectorAll('.panel-tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabPanes.forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        const target = btn.getAttribute('data-tab');
+        if (target === 'car-panel') document.getElementById('pane-car-panel').classList.add('active');
+        else if (target === 'dispatch-tab') document.getElementById('pane-dispatch-tab').classList.add('active');
+        else if (target === 'admin-tab') document.getElementById('pane-admin-tab').classList.add('active');
+      });
+    });
+
+    // Sidebar Collapse
+    const sidebar = document.getElementById('sidebar-panel');
+    const openSidebarBtn = document.getElementById('btn-open-sidebar');
+    const closeSidebarBtn = document.getElementById('btn-close-sidebar');
+
+    closeSidebarBtn.addEventListener('click', () => {
+      sidebar.classList.add('collapsed');
+      openSidebarBtn.style.display = 'inline-flex';
+    });
+    openSidebarBtn.addEventListener('click', () => {
+      sidebar.classList.remove('collapsed');
+      openSidebarBtn.style.display = 'none';
+    });
+
+    // Populate Car Selector Pills
+    const carPillsContainer = document.getElementById('car-select-pills');
+    sim.elevators.forEach((e, idx) => {
+      const pill = document.createElement('div');
+      pill.className = `car-select-pill ${idx === 0 ? 'active' : ''}`;
+      pill.textContent = e.label.replace('LIFT ', 'CAR ');
+      pill.addEventListener('click', () => selectCar(idx));
+      carPillsContainer.appendChild(pill);
+    });
+
+    function selectCar(idx) {
+      sim.selectedCarIndex = idx;
+      const pills = carPillsContainer.querySelectorAll('.car-select-pill');
+      pills.forEach((p, i) => p.classList.toggle('active', i === idx));
+      document.getElementById('selected-car-badge').textContent = sim.elevators[idx].label;
+      updateCarPanelUI();
+    }
+
+    // Populate Interior Destination Buttons (1 to 12)
+    const interiorBtnGrid = document.getElementById('interior-floor-buttons');
+    for (let f = 1; f <= CONFIG.floors; f++) {
+      const btn = document.createElement('button');
+      btn.className = 'interior-btn';
+      btn.textContent = f;
+      btn.id = `in-btn-${f}`;
+      btn.addEventListener('click', () => {
+        const car = sim.elevators[sim.selectedCarIndex];
+        if (car && car.inService) {
+          car.carCalls.add(f);
+          sim.log(`Passenger button pressed inside ${car.label}: Floor ${f}`, 'normal');
+          updateCarPanelUI();
+        }
+      });
+      interiorBtnGrid.appendChild(btn);
+    }
+
+    // Populate Manual Floor Select
+    const manualFloorSelect = document.getElementById('select-manual-floor');
+    for (let f = 1; f <= CONFIG.floors; f++) {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = `Floor ${f}`;
+      manualFloorSelect.appendChild(opt);
+    }
+
+    document.getElementById('btn-manual-call-up').addEventListener('click', () => {
+      const f = parseInt(manualFloorSelect.value, 10);
+      sim.pressHallCall(f, 'UP');
+    });
+    document.getElementById('btn-manual-call-down').addEventListener('click', () => {
+      const f = parseInt(manualFloorSelect.value, 10);
+      sim.pressHallCall(f, 'DOWN');
+    });
+
+    // In-Car Actions
+    document.getElementById('btn-door-open').addEventListener('click', () => {
+      const car = sim.elevators[sim.selectedCarIndex];
+      if (car.status === 'IDLE' || car.status === 'DOORS_CLOSING') {
+        car.status = 'DOORS_OPENING';
+        car.doorTimer = 0;
+      }
+    });
+    document.getElementById('btn-door-close').addEventListener('click', () => {
+      const car = sim.elevators[sim.selectedCarIndex];
+      if (car.status === 'DOORS_OPEN') {
+        car.status = 'DOORS_CLOSING';
+        car.doorTimer = 0;
+      }
+    });
+    document.getElementById('btn-car-emergency').addEventListener('click', () => {
+      const car = sim.elevators[sim.selectedCarIndex];
+      if (car.status === 'EMERGENCY') {
+        car.status = 'IDLE';
+        sim.log(`Emergency stop cleared on ${car.label}`, 'normal');
+      } else {
+        car.status = 'EMERGENCY';
+        sim.log(`EMERGENCY STOP ENGAGED ON ${car.label}!`, 'emg');
+      }
+      updateCarPanelUI();
+    });
+
+    // Sim Quick Controls
+    const playPauseBtn = document.getElementById('btn-play-pause');
+    playPauseBtn.addEventListener('click', () => {
+      sim.paused = !sim.paused;
+      document.getElementById('play-pause-icon').textContent = sim.paused ? '▶' : '⏸';
+      document.getElementById('play-pause-text').textContent = sim.paused ? 'Paused' : 'Running';
+      playPauseBtn.classList.toggle('active', !sim.paused);
+    });
+
+    const speedBtns = document.querySelectorAll('[data-speed]');
+    speedBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        speedBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        sim.timeScale = parseFloat(btn.getAttribute('data-speed'));
+      });
+    });
+
+    const autoOrbitBtn = document.getElementById('btn-auto-orbit');
+    autoOrbitBtn.addEventListener('click', () => {
+      controls.autoRotate = !controls.autoRotate;
+      autoOrbitBtn.classList.toggle('active', controls.autoRotate);
+    });
+
+    document.getElementById('btn-reset-view').addEventListener('click', () => {
+      camera.position.copy(initialCamPos);
+      controls.target.copy(initialTarget);
+      controls.autoRotate = true;
+      autoOrbitBtn.classList.add('active');
+    });
+
+    // Algorithm & Preset Change
+    const algoSelect = document.getElementById('select-algorithm');
+    algoSelect.addEventListener('change', () => {
+      sim.setAlgorithm(algoSelect.value);
+      const desc = document.getElementById('algo-description');
+      if (algoSelect.value === 'look') desc.textContent = "SCAN/LOOK: Services all hall calls in the current direction before sweeping back.";
+      else if (algoSelect.value === 'nearest') desc.textContent = "Nearest Car: Greedy assignment based on geometric floor distance.";
+      else desc.textContent = "Least Wait Time: Multi-factor cost model evaluating ETA, intermediate stops, and cabin load.";
+    });
+
+    const presetSelect = document.getElementById('select-traffic-preset');
+    presetSelect.addEventListener('change', () => {
+      sim.trafficPreset = presetSelect.value;
+      sim.log(`Traffic profile changed to: ${presetSelect.options[presetSelect.selectedIndex].text}`, 'normal');
+    });
+
+    const spawnSlider = document.getElementById('slider-spawn-rate');
+    spawnSlider.addEventListener('input', () => {
+      sim.spawnRatePerMin = parseInt(spawnSlider.value, 10);
+      document.getElementById('spawn-rate-val').textContent = `${sim.spawnRatePerMin} / min`;
+    });
+
+    // Raycasting on 3D Cars
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    window.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.top-bar, .sidebar-panel, .sidebar-toggle-btn')) return;
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(buildingGroup.children, true);
+      for (const hit of intersects) {
+        if (hit.object.userData && hit.object.userData.isElevator) {
+          selectCar(hit.object.userData.elevId);
+          // Smooth focus camera on car
+          const targetPos = new THREE.Vector3();
+          elevatorMeshes[hit.object.userData.elevId].group.getWorldPosition(targetPos);
+          targetPos.y += 1.2;
+          controls.target.lerp(targetPos, 0.5);
+          break;
+        }
+      }
+    });
+
+    // ========================================================================
+    // 8. UI SYNC & ADMIN CHARTS
+    // ========================================================================
+    function updateCarPanelUI() {
+      const car = sim.elevators[sim.selectedCarIndex];
+      if (!car) return;
+
+      document.getElementById('screen-floor-num').textContent = `F${car.currentFloor}`;
+      const dirArrow = document.getElementById('screen-dir-arrow');
+      dirArrow.textContent = car.direction === 'UP' ? '▲' : (car.direction === 'DOWN' ? '▼' : '—');
+      dirArrow.style.color = car.direction === 'UP' ? '#10b981' : (car.direction === 'DOWN' ? '#f59e0b' : '#64748b');
+
+      const statusText = document.getElementById('screen-status-text');
+      statusText.textContent = car.status;
+      statusText.style.color = car.status === 'EMERGENCY' ? '#f43f5e' : (car.status === 'MOVING' ? '#38bdf8' : '#10b981');
+
+      document.getElementById('screen-load-count').textContent = `${car.passengers.length} / ${CONFIG.carCapacity}`;
+
+      // In-car floor buttons light up if pressed
+      for (let f = 1; f <= CONFIG.floors; f++) {
+        const btn = document.getElementById(`in-btn-${f}`);
+        if (btn) btn.classList.toggle('pressed', car.carCalls.has(f));
+      }
+
+      // Load Meter
+      const loadPct = (car.passengers.length / CONFIG.carCapacity) * 100;
+      document.getElementById('load-meter-fill').style.width = `${loadPct}%`;
+      document.getElementById('load-factor-percent').textContent = `${Math.round(loadPct)}%`;
+
+      // Stops list
+      const stopsList = document.getElementById('car-stops-list');
+      const allStops = Array.from(new Set([...Array.from(car.carCalls), ...car.targetQueue]));
+      if (allStops.length === 0) {
+        stopsList.textContent = "No pending stops.";
+      } else {
+        stopsList.innerHTML = allStops.map(s => `<span style="display:inline-block; margin-right:8px; background:rgba(56,189,248,0.15); padding:2px 8px; border-radius:4px; color:#fff;">F${s}</span>`).join('');
+      }
+    }
+
+    function updateEventLogUI() {
+      const box = document.getElementById('event-log-box');
+      if (!box) return;
+      box.innerHTML = sim.eventLogs.slice(0, 20).map(l => `
+        <div class="log-line ${l.type}">
+          <span class="time">[${l.time}]</span> ${l.text}
+        </div>
+      `).join('');
+    }
+
+    function updateAdminUI() {
+      // KPIs
+      document.getElementById('kpi-total-passengers').textContent = sim.kpi.totalServed;
+      const avgWait = sim.kpi.totalServed > 0 ? (sim.kpi.totalWaitTime / sim.kpi.totalServed).toFixed(1) : '0.0';
+      const avgTravel = sim.kpi.totalServed > 0 ? (sim.kpi.totalTravelTime / sim.kpi.totalServed).toFixed(1) : '0.0';
+      document.getElementById('kpi-avg-wait').textContent = `${avgWait}s`;
+      document.getElementById('kpi-avg-travel').textContent = `${avgTravel}s`;
+      document.getElementById('kpi-max-wait').textContent = `${sim.kpi.maxWaitTime.toFixed(1)}s`;
+
+      // Active Hall Calls list
+      const callsContainer = document.getElementById('active-calls-roster');
+      const activeCalls = sim.hallCalls.filter(c => c.up || c.down);
+      if (activeCalls.length === 0) {
+        callsContainer.textContent = "No pending hall calls.";
+      } else {
+        callsContainer.innerHTML = activeCalls.map(c => `
+          <div style="display:flex; justify-content:space-between; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:4px;">
+            <span>Floor ${c.floor} ${c.up ? '▲' : ''}${c.down ? '▼' : ''}</span>
+            <span style="color:var(--accent-cyan); font-weight:700;">${c.up ? `Car ${c.upAssignedTo !== null ? String.fromCharCode(65 + c.upAssignedTo) : '?'}` : ''}</span>
+          </div>
+        `).join('');
+      }
+
+      // Fleet Table
+      const tableBody = document.getElementById('fleet-table-body');
+      tableBody.innerHTML = sim.elevators.map(e => `
+        <tr>
+          <td style="color:#fff; font-weight:700;">${e.label.replace('LIFT ', '')}</td>
+          <td>F${e.currentFloor}</td>
+          <td style="color:${e.direction === 'UP' ? '#10b981' : (e.direction === 'DOWN' ? '#f59e0b' : '#64748b')}">${e.direction}</td>
+          <td>${e.passengers.length}/${CONFIG.carCapacity}</td>
+          <td>${e.stats.trips}</td>
+          <td>
+            <button onclick="toggleCarService(${e.id})" style="background:${e.inService ? 'rgba(16,185,129,0.2)' : 'rgba(244,63,94,0.2)'}; border:none; color:${e.inService ? '#10b981' : '#f43f5e'}; padding:2px 6px; border-radius:4px; cursor:pointer;">
+              ${e.inService ? 'Active' : 'Offline'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      // Alerts
+      const alertsBox = document.getElementById('alerts-container');
+      const alerts = [];
+      if (sim.kpi.maxWaitTime > 50) alerts.push(`<div class="alert-pill danger">⚠ High passenger wait time detected (>50s). Consider LOOK or Least Wait algorithm.</div>`);
+      sim.elevators.forEach(e => {
+        if (e.status === 'EMERGENCY') alerts.push(`<div class="alert-pill danger">🚨 Emergency stop active on ${e.label}. Maintenance required.</div>`);
+        if (e.passengers.length >= CONFIG.carCapacity) alerts.push(`<div class="alert-pill">⚠ ${e.label} reached 100% passenger capacity.</div>`);
+      });
+      if (alerts.length === 0) alerts.push(`<div class="alert-pill">✓ All 4 elevator shafts operating within nominal parameters.</div>`);
+      alertsBox.innerHTML = alerts.join('');
+    }
+
+    window.toggleCarService = function(id) {
+      const car = sim.elevators[id];
+      if (car) {
+        car.inService = !car.inService;
+        if (!car.inService) car.status = 'OUT_OF_SERVICE';
+        else car.status = 'IDLE';
+        sim.log(`${car.label} toggled to ${car.inService ? 'IN-SERVICE' : 'OUT-OF-SERVICE'}`, 'normal');
+      }
+    };
+
+    // Export CSV Report
+    document.getElementById('btn-export-csv').addEventListener('click', () => {
+      let csv = "Elevator,Status,CurrentFloor,TripsCompleted,DistanceFloors,DoorCycles,PassengersServed\n";
+      sim.elevators.forEach(e => {
+        csv += `${e.label},${e.status},${e.currentFloor},${e.stats.trips},${e.stats.distanceFloors},${e.stats.doorCycles},${e.stats.passengersServed}\n`;
+      });
+      csv += `\nTotalServed,AvgWaitTime,AvgTravelTime,MaxWaitTime\n${sim.kpi.totalServed},${(sim.kpi.totalWaitTime/Math.max(1,sim.kpi.totalServed)).toFixed(2)},${(sim.kpi.totalTravelTime/Math.max(1,sim.kpi.totalServed)).toFixed(2)},${sim.kpi.maxWaitTime.toFixed(2)}\n`;
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Aerovator_Dispatch_Report_${Date.now()}.csv`;
+      a.click();
+    });
+
+    document.getElementById('btn-reset-stats').addEventListener('click', () => {
+      sim.kpi.totalServed = 0;
+      sim.kpi.totalWaitTime = 0;
+      sim.kpi.totalTravelTime = 0;
+      sim.kpi.maxWaitTime = 0;
+      sim.kpi.waitTimeHistory = [];
+      sim.elevators.forEach(e => {
+        e.stats.trips = 0; e.stats.distanceFloors = 0; e.stats.doorCycles = 0; e.stats.passengersServed = 0;
+      });
+      sim.log("All dispatch analytics and KPI counters reset.", 'warn');
+    });
+
+    // Canvas Charts Renderer (No external library required)
+    function renderCharts() {
+      // 1. Floor Traffic Demand Bar Chart
+      const cvs1 = document.getElementById('chart-floors');
+      if (cvs1) {
+        const ctx = cvs1.getContext('2d');
+        cvs1.width = cvs1.parentElement.clientWidth;
+        cvs1.height = cvs1.parentElement.clientHeight;
+        ctx.clearRect(0, 0, cvs1.width, cvs1.height);
+
+        const maxDemand = Math.max(1, ...sim.kpi.floorDemand);
+        const barW = (cvs1.width - 24) / CONFIG.floors;
+
+        for (let f = 1; f <= CONFIG.floors; f++) {
+          const count = sim.kpi.floorDemand[f];
+          const barH = (count / maxDemand) * (cvs1.height - 30);
+          const x = 12 + (f - 1) * barW;
+          const y = cvs1.height - barH - 18;
+
+          ctx.fillStyle = f === 1 ? '#06b6d4' : '#38bdf8';
+          ctx.fillRect(x + 2, y, barW - 4, barH);
+
+          ctx.fillStyle = '#64748b';
+          ctx.font = '10px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`F${f}`, x + barW / 2, cvs1.height - 4);
+        }
+      }
+
+      // 2. Wait Time Trend Line Chart
+      const cvs2 = document.getElementById('chart-waittime');
+      if (cvs2) {
+        const ctx2 = cvs2.getContext('2d');
+        cvs2.width = cvs2.parentElement.clientWidth;
+        cvs2.height = cvs2.parentElement.clientHeight;
+        ctx2.clearRect(0, 0, cvs2.width, cvs2.height);
+
+        const history = sim.kpi.waitTimeHistory.slice(-25);
+        if (history.length > 1) {
+          ctx2.strokeStyle = '#10b981';
+          ctx2.lineWidth = 2;
+          ctx2.beginPath();
+
+          const maxW = Math.max(30, ...history.map(h => h.wait));
+          for (let i = 0; i < history.length; i++) {
+            const x = (i / (history.length - 1)) * (cvs2.width - 20) + 10;
+            const y = cvs2.height - 15 - (history[i].wait / maxW) * (cvs2.height - 30);
+            if (i === 0) ctx2.moveTo(x, y);
+            else ctx2.lineTo(x, y);
+          }
+          ctx2.stroke();
+        } else {
+          ctx2.fillStyle = '#64748b';
+          ctx2.font = '11px sans-serif';
+          ctx2.textAlign = 'center';
+          ctx2.fillText("Collecting traffic data...", cvs2.width / 2, cvs2.height / 2);
+        }
+      }
+    }
+
+    // ========================================================================
+    // 9. ANIMATION LOOP & THREE.JS RENDER
+    // ========================================================================
+    const clock = new THREE.Clock();
+    let chartTimer = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(0.1, clock.getDelta());
+
+      // Update Simulation Engine
+      sim.update(dt);
+
+      // 9A. Sync 3D Elevator Meshes with Sim State
+      sim.elevators.forEach(elev => {
+        const mesh = elevatorMeshes[elev.id];
+        if (!mesh) return;
+
+        // Position car
+        mesh.group.position.y = elev.preciseY;
+
+        // Animate Sliding Bi-Parting Doors
+        const slide = 0.42 * elev.doorProgress;
+        mesh.doorL.position.x = -0.45 - slide;
+        mesh.doorR.position.x = 0.45 + slide;
+
+        // Arrow Mesh Orientation & Color
+        if (elev.direction === 'UP') {
+          mesh.arrowMesh.rotation.z = 0; // Point up
+          mesh.arrowMat.color.setHex(CONFIG.colors.arrowUp);
+        } else if (elev.direction === 'DOWN') {
+          mesh.arrowMesh.rotation.z = Math.PI; // Point down
+          mesh.arrowMat.color.setHex(CONFIG.colors.arrowDown);
+        } else {
+          mesh.arrowMat.color.setHex(CONFIG.colors.arrowIdle);
+        }
+
+        // Motion Trail / Glow Intensity
+        mesh.trailMat.opacity = (elev.status === 'MOVING') ? 0.35 : 0.0;
+
+        // Suspension Cables dynamically stretch to top
+        const cLen = Math.max(0.2, CONFIG.totalHeight - (elev.preciseY + 2.5));
+        mesh.cable.position.y = elev.preciseY + 2.5;
+        mesh.cable.scale.set(1, cLen, 1);
+
+        // Counterweight moves in OPPOSITE phase
+        const cwY = CONFIG.totalHeight - elev.preciseY - 1.8;
+        mesh.counterweight.position.y = cwY;
+      });
+
+      // 9B. Sync Hall Call Button Lights
+      sim.hallCalls.forEach((call, idx) => {
+        const p = hallPanelMeshes[idx];
+        if (p) {
+          p.upBtnMat.color.setHex(call.up ? CONFIG.colors.arrowUp : 0x475569);
+          p.downBtnMat.color.setHex(call.down ? CONFIG.colors.arrowDown : 0x475569);
+        }
+      });
+
+      // 9C. Sync 3D Passenger Figures
+      sim.passengers.forEach(p => {
+        if (p.mesh) {
+          let y = 0;
+          if (p.state === 'RIDING' && p.carId !== null) {
+            y = sim.elevators[p.carId].preciseY;
+          } else {
+            y = (p.startFloor - 1) * CONFIG.floorHeight;
+          }
+          p.mesh.position.set(p.posX, y, p.posZ);
+        }
+      });
+
+      // Periodic UI updates
+      chartTimer += dt;
+      if (chartTimer >= 0.5) {
+        chartTimer = 0;
+        updateCarPanelUI();
+        updateAdminUI();
+        renderCharts();
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Responsive Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    // Initial Trigger of a few passengers
+    setTimeout(() => {
+      sim.spawnPassenger(1, 7);
+      sim.spawnPassenger(4, 1);
+      sim.spawnPassenger(1, 10);
+    }, 600);
+  </script>
+</body>
+</html>
