@@ -1,6 +1,19 @@
 # 🏢 Elevator Dispatching System
 
-A C++ program that works like a real elevator system in a building.
+A modern, high-throughput direction-aware elevator dispatching system featuring an interactive 3D simulation, OOP C++ core engine, and real-time group control dispatcher.
+
+[![Live Demo - 3D Group Control](https://img.shields.io/badge/Live%20Demo-3D%20Group%20Control%20Simulator-00f2fe?style=for-the-badge&logo=three.js)](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/elevator-group-3d.html)
+[![Live Demo - Web Showcase](https://img.shields.io/badge/Live%20Demo-Modern%20Web%20Showcase-4facfe?style=for-the-badge)](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/index.html)
+[![GitHub Pages](https://img.shields.io/badge/Deployment-GitHub%20Pages-brightgreen?style=for-the-badge&logo=github)](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/)
+
+---
+
+### 🌐 Live Web Simulators
+- 🎮 **[3D Central Elevator Group-Control Simulator](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/elevator-group-3d.html)**: 12-floor central lobby bank, 4 side-by-side lifts, 3D animated passengers, car interior panel, live algorithm switcher (Nearest Car / LOOK-SCAN / Least Wait Time), counterweights, dynamic lighting, and admin analytics dashboard.
+- 🏢 **[3D 4-Corner Elevator Tower](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/elevator-3d.html)**: Glass cutaway building, independent queues, interactive camera follow, and floor buttons.
+- 🚀 **[Landing Page & Architecture Showcase](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/index.html)**: Dark glassmorphism interface detailing the C++ OOP engine, algorithms, UML models, and interactive shaft simulator.
+
+---
 
 **Made by:**
 | Name | Enrollment No. |
