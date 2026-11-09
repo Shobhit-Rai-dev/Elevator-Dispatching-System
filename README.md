@@ -8,7 +8,7 @@ A modern, high-throughput direction-aware elevator dispatching system featuring 
 
 ---
 
-### 🌐 Live Web Simulators
+### 🌐 Live Web Simulators & Deployment
 - 🎮 **[3D Central Elevator Group-Control Simulator](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/elevator-group-3d.html)**: 12-floor central lobby bank, 4 side-by-side lifts, 3D animated passengers, car interior panel, live algorithm switcher (Nearest Car / LOOK-SCAN / Least Wait Time), counterweights, dynamic lighting, and admin analytics dashboard.
 - 🏢 **[3D 4-Corner Elevator Tower](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/elevator-3d.html)**: Glass cutaway building, independent queues, interactive camera follow, and floor buttons.
 - 🚀 **[Landing Page & Architecture Showcase](https://anuragbraveboy-sudo.github.io/Elevator-Dispatching-System/index.html)**: Dark glassmorphism interface detailing the C++ OOP engine, algorithms, UML models, and interactive shaft simulator.
@@ -26,131 +26,104 @@ A modern, high-throughput direction-aware elevator dispatching system featuring 
 
 ---
 
-## 💡 What Does This Program Do?
+## 💡 What Does This System Do?
 
 Imagine you are standing on Floor 3 and want to go to Floor 8.
-You press a button → The **nearest elevator comes to you** → You get in → It drops you at Floor 8.
+You press a button → The **optimal elevator is dispatched** → You board → It smoothly delivers you to Floor 8.
 
-That is exactly what this program simulates — but for a 10-floor building with 3 elevators.
-
-You run the program, a menu appears in the terminal, and you can:
-- **Call an elevator** to your floor
-- **Open/Close doors** manually
-- **Report an emergency** (like someone stuck inside)
-- **See the status** of all elevators anytime
+The project models this across:
+1. **Interactive 3D Web Simulation (Three.js)**: Full real-time multi-car visualization with passenger flow, call queueing, counterweights, and telemetry.
+2. **C++ OOP Engine (`src/code.cpp`)**: A robust, menu-driven multi-elevator dispatching system modeling realistic building dynamics.
 
 ---
 
-## 🧩 How the Program is Structured
+## 🤖 Dispatching Algorithms
 
-The program has **6 main building blocks (classes):**
+The dispatch system supports multiple intelligent scheduling strategies:
 
-| Class | What it represents |
+### 1. LOOK / SCAN Algorithm
+- Elevators service calls in their current direction until no further requests exist in that direction, then reverse.
+- Calculates an exact cost score factoring current direction, relative distance, and turnaround penalties.
+
+### 2. Nearest Car
+- Evaluates raw spatial proximity to deliver the quickest immediate response.
+
+### 3. Least Waiting Time (Cost-Based)
+- Minimizes global passenger wait times by weighting distance, current passenger load, and scheduled stops.
+
+---
+
+## 🧩 C++ Object-Oriented Architecture
+
+| Class | Purpose |
 |---|---|
-| `Elevator` | A single elevator in the building |
-| `EmergencyElevator` | A special elevator only for emergencies |
-| `ElevatorRequest` | A trip request (e.g. Floor 3 → Floor 8) |
-| `MaintenanceStaff` | The repair team that rescues stuck passengers |
-| `ElevatorDispatchSystem` | The brain — decides which elevator to send |
-| `ElevatorMotor` | The motor inside each elevator (nested inside `Elevator`) |
+| `Elevator` | Base elevator class managing floor, direction, door state, capacity, and kinematics |
+| `EmergencyElevator` | Specialized emergency unit with bypass modes and rescue protocols |
+| `ElevatorRequest` | Trip specification (source, destination, direction, timestamp) |
+| `MaintenanceStaff` | Emergency dispatch team handling passenger safety and stuck units |
+| `ElevatorDispatchSystem` | Central dispatcher executing dispatch scoring and fleet orchestration |
+| `ElevatorMotor` | Nested motor component driving car motion |
+
+### 📚 OOP Concepts Demonstrated
+- **Encapsulation**: Private fields accessed via protected getters/setters.
+- **Nested Classes & Composition**: `ElevatorMotor` tightly integrated within `Elevator`.
+- **Inheritance & Polymorphism**: `EmergencyElevator` extending `Elevator` with virtual method overrides.
+- **Operator Overloading**: Custom stream insertion (`<<`) and equality comparison (`==`).
+- **Templates & Type Casting**: Template boxes and custom basic-to-class/class-to-class casting.
+- **Friend Functions**: External diagnostic routines (`showRequestSummary`).
+- **Static Members**: Global fleet analytics counters (`totalRequests`, `getTotalRequests()`).
 
 ---
 
-## 🤖 How Does It Pick the Right Elevator? (LOOK Algorithm)
-
-Instead of just picking the **closest** elevator, the program is smarter.
-It uses the **LOOK Algorithm** — the same method real elevators use.
-
-**Simple rules:**
-1. If an elevator is **not moving** → pick the closest one
-2. If an elevator is **going UP** and you are also going UP → it picks you up on the way *(cheapest option)*
-3. If an elevator is **going UP** but you want to go DOWN → it first finishes going up, then comes back for you
-4. If the elevator **already passed your floor** → it has to do a full round trip first
-5. If an elevator is in **Emergency or Maintenance** → it is completely ignored
-
-> The elevator with the **lowest cost (score)** wins and gets sent to you.
-
----
-
-## 🖥️ What the Menu Looks Like
-
-When you run the program, you see this:
-
-```
-========== ELEVATOR CONTROL PANEL ==========
-  [1] Request Elevator (Source & Destination)
-  [2] Elevator Car Controls (Doors & Floor)
-  [3] Report Emergency & Rescue
-  [4] View Elevators Status
-  [5] OOP Features & System Stats
-  [6] Exit
-============================================
-```
-
-Just type a number and press Enter!
-
----
-
-## 📚 C++ Concepts Used (OOP)
-
-| Concept | Simple Meaning | Used Where |
-|---|---|---|
-| **Encapsulation** | Data is kept private, only methods can access it | `Elevator` class |
-| **Abstraction** | Complex steps hidden behind simple functions | `move()`, `openDoor()` |
-| **Nested Class** | A class inside another class | `ElevatorMotor` inside `Elevator` |
-| **Inheritance** | Child class gets features of parent class | `EmergencyElevator` from `Elevator` |
-| **`final`** | No one can further extend this class | `EmergencyElevator final` |
-| **Virtual Function** | Parent class method can be replaced by child | `display()`, `move()` |
-| **Override** | Child replaces parent's method | `display()` in `EmergencyElevator` |
-| **`<<` Operator** | Print object directly with `cout` | `Elevator`, `ElevatorRequest` |
-| **`==` Operator** | Compare two objects with `==` sign | `ElevatorRequest` |
-| **Friend Function** | Outside function can read private data | `showRequestSummary()` |
-| **Static Variable** | One shared value for all objects | `totalRequests` counter |
-| **Static Function** | Call without creating an object | `getTotalRequests()` |
-| **Polymorphism** | Same function, different behavior based on object | `display()` via base pointer |
-
----
-
-## 📁 Files in This Project
+## 📁 Repository Structure
 
 ```
 Elevator-Dispatching-System/
-│
+├── .github/workflows/
+│   └── deploy.yml              ← Automatic GitHub Pages deployment
+├── index.html                  ← Modern landing page & architecture showcase
+├── elevator-group-3d.html      ← 3D central bank group-control simulator
+├── elevator-3d.html            ← 3D corner tower simulator
+├── style.css                   ← Glassmorphism & responsive styles
+├── app.js                      ← Hybrid 2D/3D visualizer script
+├── docs/                       ← Documentation, class diagrams & web mirror
+│   ├── index.html
+│   ├── elevator-group-3d.html
+│   ├── elevator-3d.html
+│   ├── crc-cards.md
+│   └── use-cases.md
 ├── src/
-│   └── code.cpp              ← The main C++ source code
-│
-├── docs/
-│   ├── crc-cards.md          ← Class design cards
-│   ├── noun-analysis.md      ← Object identification document
-│   ├── use-cases.md          ← What the system can do
-│   └── (diagrams...)         ← Class and object diagrams
-│
-├── problem-stament.md        ← The original problem given to us
-└── README.md                 ← This file
+│   └── code.cpp                ← Core C++ Object-Oriented engine
+└── README.md
 ```
 
 ---
 
-## ▶️ How to Run
+## ▶️ How to Run Locally
 
-**Step 1 — Compile the code:**
+### 1. Web 3D Simulation & Showcase
+Run any standard HTTP server in the repository root:
+
 ```bash
+# Using Python
+python -m http.server 3000
+```
+Open **`http://localhost:3000/elevator-group-3d.html`** or **`http://localhost:3000/`** in your browser.
+
+### 2. C++ Console Engine
+Compile and run with any C++17 compatible compiler:
+
+```bash
+# Linux / macOS
 g++ -std=c++17 src/code.cpp -o elevator
-```
-
-**Step 2 — Run it:**
-```bash
 ./elevator
-```
 
-**On Windows:**
-```powershell
+# Windows (PowerShell / Command Prompt)
 g++ -std=c++17 src\code.cpp -o elevator.exe
 .\elevator.exe
 ```
 
 ---
 
-## 📝 Note
-
-This project was made as part of a **C++ Object-Oriented Programming** course assignment.
+## 📝 Academic Context
+Developed as part of the **C++ Object-Oriented Programming (CS 261)** course curriculum.
