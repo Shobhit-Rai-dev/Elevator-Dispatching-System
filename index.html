@@ -1,864 +1,1012 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AEROVATOR 3.0 — Intelligent Elevator Dispatching System</title>
-  <meta name="description" content="A practical, direction-aware vertical mobility simulation powered by the LOOK scheduling algorithm and clean C++ Object-Oriented architecture." />
-  <meta name="theme-color" content="#030712" />
+  <title>aerovator — elevator dispatching in c++17</title>
+  <meta name="description" content="An elevator dispatching system built in C++17 using the LOOK scheduling algorithm and object-oriented design." />
 
-  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <!-- Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ==========================================================================
+       1. VARIABLES & PALETTES (Rosé Pine inspired)
+       ========================================================================== */
+    :root, [data-theme="dark"] {
+      --bg: #191724;
+      --surface: #1f1d2e;
+      --surface-elevated: #26233a;
+      --border: #26233a;
+      --border-hover: #3b3756;
+      --text: #e0def4;
+      --muted: #908caa;
+      --faint: #6e6a86;
+      --accent: #9ccfd8;
+      --accent-contrast: #191724;
+      --card-radius: 14px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    [data-theme="light"] {
+      --bg: #faf4ed;
+      --surface: #fffaf3;
+      --surface-elevated: #f2e9e1;
+      --border: #f2e9e1;
+      --border-hover: #dfdad3;
+      --text: #575279;
+      --muted: #797593;
+      --faint: #9893a5;
+      --accent: #286983;
+      --accent-contrast: #faf4ed;
+    }
+
+    /* ==========================================================================
+       2. BASE & RESET
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 200ms ease, color 200ms ease;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      transition: color 150ms ease, border-color 150ms ease;
+    }
+
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    p {
+      color: var(--text);
+    }
+
+    /* ==========================================================================
+       3. TOP NAVIGATION
+       ========================================================================== */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background-color: var(--bg);
+      border-bottom: 1px solid transparent;
+      transition: border-color 200ms ease, background-color 200ms ease;
+    }
+
+    .nav.scrolled {
+      border-bottom-color: var(--border);
+    }
+
+    .nav-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .wordmark {
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+    }
+
+    .nav-tools {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: 6px;
+      padding-left: 14px;
+      border-left: 1px solid var(--border);
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color 150ms ease;
+    }
+
+    .icon-btn:hover {
+      color: var(--text);
+    }
+
+    .icon-btn svg {
+      width: 17px;
+      height: 17px;
+      display: block;
+    }
+
+    /* ==========================================================================
+       4. HERO / INTRO COLUMN
+       ========================================================================== */
+    .main {
+      flex: 1;
+      padding: 72px 24px 96px;
+    }
+
+    .intro {
+      max-width: 640px;
+      margin: 0 auto 72px;
+    }
+
+    .intro-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.35;
+      margin-bottom: 20px;
+      color: var(--text);
+    }
+
+    .intro-text {
+      font-size: 1.02rem;
+      color: var(--text);
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+
+    .intro-text a {
+      color: var(--text);
+      text-decoration: underline;
+      text-decoration-color: var(--muted);
+    }
+
+    .intro-text a:hover {
+      text-decoration-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .intro-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: var(--font-sans);
+      font-size: 0.88rem;
+      font-weight: 500;
+      padding: 9px 18px;
+      border-radius: 8px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+    }
+
+    .btn-solid {
+      background-color: var(--accent);
+      color: var(--accent-contrast);
+      border: 1px solid var(--accent);
+    }
+
+    .btn-solid:hover {
+      opacity: 0.92;
+    }
+
+    .btn-outline {
+      background-color: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--border-hover);
+      background-color: var(--surface);
+    }
+
+    /* ==========================================================================
+       5. BENTO GRID
+       ========================================================================== */
+    .bento-section {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 200ms ease, transform 300ms ease-out, opacity 300ms ease-out;
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    .card.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .card:hover {
+      border-color: var(--border-hover);
+    }
+
+    .card-col-2 {
+      grid-column: span 2;
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .card-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
+    }
+
+    .card-desc {
+      font-size: 0.86rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    /* Card: Animated Live Lifts */
+    .shaft-diagram {
+      margin-top: 18px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .shaft-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .shaft-header {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .shaft-track {
+      width: 100%;
+      height: 110px;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 10px,
+        var(--border) 10px,
+        var(--border) 11px
+      );
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      position: relative;
+      display: flex;
+      justify-content: center;
+    }
+
+    .shaft-car {
+      position: absolute;
+      width: 82%;
+      height: 24px;
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text);
+      transition: top 800ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .shaft-dir {
+      color: var(--accent);
+      font-size: 0.65rem;
+    }
+
+    /* Card: LOOK Algorithm Steps */
+    .steps-list {
+      list-style: none;
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .steps-list li {
+      font-size: 0.85rem;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+    }
+
+    /* Card: Throughput Big Stat */
+    .stat-number {
+      font-size: 2.8rem;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1;
+      margin: 14px 0 6px;
+    }
+
+    .sparkline-svg {
+      width: 100%;
+      height: 38px;
+      margin-top: 16px;
+      overflow: visible;
+    }
+
+    .sparkline-path {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Card: Architecture Class List */
+    .class-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+      list-style: none;
+    }
+
+    .class-item {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .class-item .class-kind {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    /* Card: Team Members */
+    .team-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .team-member {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    .avatar-initials {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .team-name {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .team-id {
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    /* Card: 3D Preview */
+    .sim-preview-box {
+      margin-top: 14px;
+      height: 100px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sim-preview-wireframe {
+      width: 48px;
+      height: 72px;
+      border: 1px solid var(--border-hover);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      padding: 4px;
+    }
+
+    .sim-preview-wireframe span {
+      display: block;
+      height: 1px;
+      background-color: var(--border);
+      width: 100%;
+    }
+
+    .sim-preview-car {
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      top: 24px;
+      height: 12px;
+      background-color: var(--accent);
+      opacity: 0.8;
+      border-radius: 2px;
+      animation: previewFloat 3s ease-in-out infinite alternate;
+    }
+
+    @keyframes previewFloat {
+      0% { top: 12px; }
+      100% { top: 48px; }
+    }
+
+    .card-footer-link {
+      font-size: 0.82rem;
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: transparent;
+      margin-top: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card-footer-link:hover {
+      text-decoration-color: var(--accent);
+    }
+
+    /* ==========================================================================
+       6. FOOTER
+       ========================================================================== */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      margin-top: 72px;
+      background-color: var(--bg);
+    }
+
+    .footer-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 18px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .footer-links a:hover {
+      color: var(--text);
+    }
+
+    /* ==========================================================================
+       7. RESPONSIVE BREAKPOINTS & ACCESSIBILITY
+       ========================================================================== */
+    @media (max-width: 820px) {
+      .bento-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .card-col-2 {
+        grid-column: span 2;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .main {
+        padding: 44px 18px 64px;
+      }
+      .intro {
+        margin-bottom: 48px;
+      }
+      .intro-title {
+        font-size: 1.3rem;
+      }
+      .nav-links {
+        display: none; /* keep clean on narrow mobile */
+      }
+      .bento-grid {
+        grid-template-columns: 1fr;
+      }
+      .card-col-2 {
+        grid-column: span 1;
+      }
+      .footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .card {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+    }
+  </style>
 </head>
 <body>
-  <!-- Atmospheric CRT Scanline & Grain Overlay -->
-  <div class="crt-overlay"></div>
 
-  <!-- Background Canvas Particle Grid -->
-  <canvas id="bg-canvas"></canvas>
-
-  <!-- Glowing Ambient Mesh Orbs -->
-  <div class="orb orb-1" aria-hidden="true"></div>
-  <div class="orb orb-2" aria-hidden="true"></div>
-  <div class="orb orb-3" aria-hidden="true"></div>
-
-  <!-- Top Navigation Bar -->
-  <header class="site-header">
-    <div class="container nav-wrap">
-      <a href="#hero" class="logo">
-        <div class="logo-icon">
-          <svg viewBox="0 0 24 24">
-            <path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h10V5H7zm2 2h6v2H9V7zm0 4h6v2H9v-2zm0 4h6v2H9v-2z"/>
-          </svg>
+  <!-- ========================================================================
+       TOP NAVIGATION
+       ======================================================================== -->
+  <header class="nav" id="navbar">
+    <div class="nav-inner">
+      <a href="#" class="wordmark">aerovator</a>
+      <div class="nav-right">
+        <ul class="nav-links">
+          <li><a href="elevator-3d.html">Simulator</a></li>
+          <li><a href="#algorithm">Algorithm</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#models">Models</a></li>
+          <li><a href="#team">Team</a></li>
+        </ul>
+        <div class="nav-tools">
+          <button id="theme-toggle" class="icon-btn" aria-label="Toggle color theme" title="Toggle theme">
+            <!-- Sun / Moon SVGs swapped via JS -->
+            <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </button>
+          <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System" class="icon-btn" aria-label="GitHub Repository" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+          </a>
         </div>
-        <span>AEROVATOR<sup>3.0</sup></span>
-      </a>
-
-      <ul class="nav-links">
-        <li><a href="#simulator">Live Simulator</a></li>
-        <li><a href="#algorithm">LOOK Algorithm</a></li>
-        <li><a href="#architecture">OOP Architecture</a></li>
-        <li><a href="#diagrams">UML Models</a></li>
-        <li><a href="#team">Engineers</a></li>
-      </ul>
-
-      <div class="nav-actions">
-        <!-- Interactive Sound FX Toggle -->
-        <button id="btn-sound-toggle" class="sound-toggle-btn" title="Toggle Sound FX" aria-label="Toggle Sound FX">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-          </svg>
-        </button>
-
-        <a href="elevator-3d.html" class="btn btn-primary">🚀 3D Building Sim</a>
-        <a href="#simulator" class="btn btn-ghost">Shaft Simulator</a>
-        <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System" target="_blank" rel="noopener" class="btn btn-ghost">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-          </svg>
-          Fork Repo
-        </a>
       </div>
     </div>
   </header>
 
-  <!-- Real-Time Telemetry Marquee Ticker -->
-  <div class="telemetry-ticker" aria-hidden="true">
-    <div class="ticker-track">
-      <div class="ticker-item"><span class="ticker-dot"></span> UNIT 01: CRUISING / F0 (PASSENGER STANDARD)</div>
-      <div class="ticker-item"><span class="ticker-dot warn"></span> UNIT 02: MOVING DOWN / F6 (EXPRESS CRUISER)</div>
-      <div class="ticker-item"><span class="ticker-dot danger"></span> UNIT 03: EMERGENCY STANDBY / F2 [CODE: RED-ALERT-911]</div>
-      <div class="ticker-item"><span class="ticker-dot"></span> ALGORITHM CORE: DIRECTION-AWARE LOOK SCHEDULER</div>
-      <div class="ticker-item"><span class="ticker-dot"></span> THROUGHPUT: +42% ENERGY OPTIMIZED OVER FCFS</div>
-      <!-- Duplicate for seamless scroll -->
-      <div class="ticker-item"><span class="ticker-dot"></span> UNIT 01: CRUISING / F0 (PASSENGER STANDARD)</div>
-      <div class="ticker-item"><span class="ticker-dot warn"></span> UNIT 02: MOVING DOWN / F6 (EXPRESS CRUISER)</div>
-      <div class="ticker-item"><span class="ticker-dot danger"></span> UNIT 03: EMERGENCY STANDBY / F2 [CODE: RED-ALERT-911]</div>
-      <div class="ticker-item"><span class="ticker-dot"></span> ALGORITHM CORE: DIRECTION-AWARE LOOK SCHEDULER</div>
-      <div class="ticker-item"><span class="ticker-dot"></span> THROUGHPUT: +42% ENERGY OPTIMIZED OVER FCFS</div>
-    </div>
-  </div>
-
-  <main>
-    <!-- ====================================================================
-         HERO SECTION
-         ==================================================================== -->
-    <section class="hero-section" id="hero">
-      <div class="container">
-        <div class="hero-badge">
-          <span>✨ Autonomous Vertical Mobility</span>
-          <span>•</span>
-          <span>C++17 Engine</span>
-        </div>
-
-        <h1 class="hero-title">
-          Next-Gen Intelligent <br>
-          <span class="text-gradient">Elevator Dispatching</span> System
-        </h1>
-
-        <p class="hero-description">
-          A high-throughput, direction-aware multi-car dispatch architecture designed to eliminate passenger wait times. Powered by the classical LOOK elevator scheduling algorithm and strict Object-Oriented design principles.
-        </p>
-
-        <div class="hero-cta">
-          <a href="elevator-3d.html" class="btn btn-primary" style="padding: 14px 28px; font-size: 1rem;">
-            🚀 Launch 3D Building Sim
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-              <polyline points="12 5 19 12 12 19"></polyline>
-            </svg>
-          </a>
-          <a href="#algorithm" class="btn btn-ghost" style="padding: 14px 28px; font-size: 1rem;">
-            Explore LOOK Algorithm
-          </a>
-        </div>
-
-        <!-- Metric Counter Cards -->
-        <div class="hero-stats">
-          <div class="stat-card">
-            <b>10</b>
-            <span>Floors Automated</span>
-          </div>
-          <div class="stat-card">
-            <b>3</b>
-            <span>Smart Units (2+1 EMG)</span>
-          </div>
-          <div class="stat-card">
-            <b>~45%</b>
-            <span>Wait Time Reduction</span>
-          </div>
-          <div class="stat-card">
-            <b id="stat-total-requests">4</b>
-            <span>Serviced Trips</span>
-          </div>
-        </div>
+  <!-- ========================================================================
+       INTRO SECTION (NARROW CENTERED COLUMN)
+       ======================================================================== -->
+  <main class="main">
+    <section class="intro">
+      <h1 class="intro-title">An elevator dispatching system in C++17.</h1>
+      <p class="intro-text">
+        Hey, we're a team of IIIT Vadodara students. Aerovator is an elevator dispatching system we built in C++17 for our Object-Oriented Programming course. It uses the <a href="#algorithm">LOOK algorithm</a> to decide which car serves which call, modeling 3 lifts across 10 floors with emergency routing and live telemetry. You can test it in the <a href="elevator-3d.html">3D simulator</a> or browse the source on <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System" target="_blank" rel="noopener">GitHub</a>.
+      </p>
+      <div class="intro-actions">
+        <a href="elevator-3d.html" class="btn btn-solid">Open 3D simulator</a>
+        <a href="#algorithm" class="btn btn-outline">Read the algorithm</a>
       </div>
     </section>
 
-    <!-- ====================================================================
-         INTERACTIVE SIMULATOR (CENTERPIECE)
-         ==================================================================== -->
-    <section class="simulator-section" id="simulator">
-      <div class="container">
-        <div style="text-align: center; margin-bottom: 36px;">
-          <div class="section-label"><span>01</span> Centerpiece</div>
-          <h2 class="section-title">Interactive Industrial Shaft Simulator</h2>
-          <p class="section-subtitle" style="margin: 0 auto;">
-            Experience the real-time C++ LOOK dispatch algorithm in an industrial high-rise shaft. Watch dynamic suspension cables, counterweights, sparks, and emergency beacon flaring.
-          </p>
-        </div>
+    <!-- ======================================================================
+         BENTO GRID CARDS
+         ====================================================================== -->
+    <section class="bento-section">
+      <div class="bento-grid">
 
-        <!-- Camera & Telemetry Control Bar -->
-        <!-- Live 3D Building Simulation Viewport (Three.js WebGL) -->
-        <div class="sim-3d-card" style="margin-bottom: 36px; background: rgba(13, 20, 38, 0.75); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 18px; overflow: hidden; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);">
-          <div style="padding: 12px 20px; background: rgba(15, 23, 42, 0.9); border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span class="status-beacon" style="background: #06b6d4; box-shadow: 0 0 12px #06b6d4;"></span>
-              <span style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; color: #fff; letter-spacing: 0.02em;">3D WEBGL MULTI-STORY BUILDING SIMULATION</span>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <a href="elevator-3d.html" target="_blank" class="btn btn-ghost" style="padding: 6px 14px; font-size: 0.75rem;">Fullscreen View</a>
-              <a href="elevator-group-3d.html" target="_blank" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.75rem;">Group-Control Bank</a>
-            </div>
-          </div>
-          <iframe src="elevator-3d.html" style="width: 100%; height: 720px; border: none; display: block; background: #070b16;" loading="lazy" title="3D Building Simulator"></iframe>
-        </div>
-        <div class="sim-toolbar">
-          <div class="cam-mode-group">
-            <span style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); padding: 0 6px;">CAM:</span>
-            <button class="cam-btn active" id="btn-cam-overview" data-mode="overview">Overview Shaft</button>
-            <button class="cam-btn" id="btn-cam-industrial" data-mode="industrial">Industrial Depth</button>
-            <button class="cam-btn" id="btn-cam-emergency" data-mode="emergency">Emergency Mode</button>
-          </div>
-
-          <div class="telemetry-pills">
-            <div class="telemetry-pill">
-              <span class="ticker-dot"></span>
-              <span>GRID: <span class="val">10 FLOORS</span></span>
-            </div>
-            <div class="telemetry-pill">
-              <span>HOIST: <span class="val" id="pill-hoist-speed">0.0 m/s</span></span>
-            </div>
-            <div class="telemetry-pill">
-              <span>SHAFT TEMP: <span class="val" id="pill-shaft-temp">22°C</span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="sim-container">
-          <!-- 1. The Building Shaft Viewport (3D Tilt Frame) -->
-          <div class="shaft-viewport-wrap" id="shaft-wrap">
-            <div class="shaft-viewport" id="shaft-viewport">
-              <div class="shaft-viewport-header">
-                <div class="shaft-viewport-title">
-                  <span class="status-beacon"></span>
-                  <span>TOWER SHAFT LIVE TELEMETRY</span>
-                </div>
-                <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim); display:flex; align-items:center; gap:8px;">
-                  <span style="color: var(--accent-cyan);">LOOK ENGINE 3.2</span>
-                  <span>•</span>
-                  <span>FLOORS [0 — 10]</span>
-                </div>
-              </div>
-
-              <div class="building-grid" id="building-grid">
-                <!-- Friction Sparks and Atmospheric Smoke Particle Canvas -->
-                <canvas id="shaft-fx-canvas"></canvas>
-
-                <!-- Column 0: Floor Labels & Direct Call Buttons -->
-                <div class="floor-labels">
-                  <div class="floor-label-cell" data-floor="10">
-                    <span>F10</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="10" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="9">
-                    <span>F9</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="9" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="9" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="8">
-                    <span>F8</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="8" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="8" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="7">
-                    <span>F7</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="7" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="7" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="6">
-                    <span>F6</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="6" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="6" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="5">
-                    <span>F5</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="5" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="5" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="4">
-                    <span>F4</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="4" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="4" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="3">
-                    <span>F3</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="3" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="3" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="2">
-                    <span>F2</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="2" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="2" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="1">
-                    <span>F1</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="1" data-dir="UP" title="Call Up">▲</button>
-                      <button class="quick-call-btn" data-floor="1" data-dir="DOWN" title="Call Down">▼</button>
-                    </div>
-                  </div>
-                  <div class="floor-label-cell" data-floor="0">
-                    <span>F0 (G)</span>
-                    <div class="floor-call-btns">
-                      <button class="quick-call-btn" data-floor="0" data-dir="UP" title="Call Up">▲</button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Column 1: Elevator 1 (Alpha) -->
-                <div class="shaft-column" id="shaft-col-1">
-                  <div class="shaft-col-header">
-                    <span>UNIT 01 · 8P</span>
-                    <span class="sheave-pulley" id="sheave-1" title="Traction Motor Hoist"></span>
-                  </div>
-                  <div class="shaft-rails">
-                    <!-- Central Structural Steel I-Beam Guide Rail -->
-                    <div class="shaft-rail-line"></div>
-                    <!-- Industrial Maintenance Steel Ladder -->
-                    <div class="shaft-ladder"></div>
-
-                    <!-- Industrial Red Bulkhead Lamps (Caged Emergency Lights) -->
-                    <div class="bulkhead-lamp" style="bottom: 78%;" title="Bulkhead Warning Light"></div>
-                    <div class="bulkhead-lamp" style="bottom: 48%;" title="Bulkhead Warning Light"></div>
-                    <div class="bulkhead-lamp" style="bottom: 18%;" title="Bulkhead Warning Light"></div>
-
-                    <!-- Counterweight sliding in opposite phase -->
-                    <div class="shaft-counterweight" id="counterweight-1" style="top: 85%;"></div>
-
-                    <!-- Suspended High-Tensile Steel Cables -->
-                    <div class="suspension-cables" id="cables-1" style="height: 90%;">
-                      <div class="cable-wire"></div>
-                      <div class="cable-wire"></div>
-                    </div>
-
-                    <!-- Floor aperture markers -->
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-
-                    <!-- Elevator Car 1 -->
-                    <div class="elevator-car" id="elevator-car-1" style="bottom: 0%;">
-                      <div class="car-display">
-                        <span class="car-dir-icon" id="car-dir-1">—</span>
-                        <span id="car-floor-1">F0</span>
-                      </div>
-                      <div class="car-window"></div>
-                      <div class="car-doors">
-                        <div class="car-door-leaf"></div>
-                        <div class="car-door-leaf"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Column 2: Elevator 2 (Beta Express) -->
-                <div class="shaft-column" id="shaft-col-2">
-                  <div class="shaft-col-header">
-                    <span>UNIT 02 · 10P</span>
-                    <span class="sheave-pulley" id="sheave-2" title="Traction Motor Hoist"></span>
-                  </div>
-                  <div class="shaft-rails">
-                    <div class="shaft-rail-line"></div>
-                    <div class="shaft-ladder"></div>
-
-                    <!-- Industrial Red Bulkhead Lamps -->
-                    <div class="bulkhead-lamp" style="bottom: 78%;" title="Bulkhead Warning Light"></div>
-                    <div class="bulkhead-lamp" style="bottom: 48%;" title="Bulkhead Warning Light"></div>
-                    <div class="bulkhead-lamp" style="bottom: 18%;" title="Bulkhead Warning Light"></div>
-
-                    <!-- Counterweight -->
-                    <div class="shaft-counterweight" id="counterweight-2" style="top: 36%;"></div>
-
-                    <!-- Suspension Cables -->
-                    <div class="suspension-cables" id="cables-2" style="height: 40%;">
-                      <div class="cable-wire"></div>
-                      <div class="cable-wire"></div>
-                    </div>
-
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-
-                    <!-- Elevator Car 2 -->
-                    <div class="elevator-car" id="elevator-car-2" style="bottom: 54%;">
-                      <div class="car-display">
-                        <span class="car-dir-icon" id="car-dir-2">▼</span>
-                        <span id="car-floor-2">F6</span>
-                      </div>
-                      <div class="car-window"></div>
-                      <div class="car-doors">
-                        <div class="car-door-leaf"></div>
-                        <div class="car-door-leaf"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Column 3: Elevator 3 (Emergency Rescue Unit) -->
-                <div class="shaft-column" id="shaft-col-3">
-                  <div class="shaft-col-header emg-header">
-                    <span>UNIT 03 · EMG</span>
-                    <span class="sheave-pulley" id="sheave-3" title="Emergency High-Speed Hoist"></span>
-                  </div>
-                  <div class="shaft-rails">
-                    <div class="shaft-rail-line"></div>
-                    <div class="shaft-ladder"></div>
-
-                    <!-- Industrial Red Bulkhead Lamps -->
-                    <div class="bulkhead-lamp" style="bottom: 78%;" title="Bulkhead Warning Light"></div>
-                    <div class="bulkhead-lamp" style="bottom: 48%;" title="Bulkhead Warning Light"></div>
-                    <div class="bulkhead-lamp" style="bottom: 18%;" title="Bulkhead Warning Light"></div>
-
-                    <!-- Counterweight -->
-                    <div class="shaft-counterweight" id="counterweight-3" style="top: 72%;"></div>
-
-                    <!-- Suspension Cables -->
-                    <div class="suspension-cables" id="cables-3" style="height: 75%;">
-                      <div class="cable-wire"></div>
-                      <div class="cable-wire"></div>
-                    </div>
-
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-                    <div class="shaft-floor-marker"></div>
-
-                    <!-- Elevator Car 3 (Emergency Priority) -->
-                    <div class="elevator-car emergency-car" id="elevator-car-3" style="bottom: 18%;">
-                      <div class="car-display">
-                        <span class="car-dir-icon" id="car-dir-3">—</span>
-                        <span id="car-floor-3">F2</span>
-                      </div>
-                      <div class="car-window" style="border-color: rgba(255, 30, 66, 0.6); background: rgba(255, 30, 66, 0.2);"></div>
-                      <div class="car-doors">
-                        <div class="car-door-leaf"></div>
-                        <div class="car-door-leaf"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. Interactive Control Deck & Telemetry -->
-          <div class="sim-controls-panel">
-            <!-- Passenger Call Card -->
-            <div class="panel-card">
-              <div class="panel-card-title">
-                <span>Passenger Call Console</span>
-                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-cyan);">LOOK ENGINE v3.2</span>
-              </div>
-
-              <div class="form-group-row">
-                <div class="form-group">
-                  <label for="select-source-floor">Source Floor</label>
-                  <select id="select-source-floor" class="form-select"></select>
-                </div>
-                <div class="form-group">
-                  <label for="select-dest-floor">Destination Floor</label>
-                  <select id="select-dest-floor" class="form-select"></select>
-                </div>
-              </div>
-
-              <button id="btn-dispatch-call" class="btn btn-primary btn-dispatch">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polygon points="10 8 16 12 10 16 10 8"></polygon>
-                </svg>
-                Dispatch Elevator (Run LOOK)
-              </button>
-
-              <!-- Live LOOK Cost Matrix HUD -->
-              <div class="look-cost-matrix">
-                <div class="look-matrix-title">
-                  <span>LOOK Cost Evaluation Matrix</span>
-                  <span>Cost Score (Lower is Better)</span>
-                </div>
-                <div class="look-units-grid">
-                  <div class="unit-score-card" id="score-card-1">
-                    <span class="unit-score-name">UNIT 01</span>
-                    <div class="unit-score-val" id="score-val-1">3</div>
-                    <span class="unit-score-status" id="score-status-1">AVAILABLE</span>
-                  </div>
-                  <div class="unit-score-card chosen" id="score-card-2">
-                    <span class="unit-score-name">UNIT 02</span>
-                    <div class="unit-score-val" id="score-val-2">2</div>
-                    <span class="unit-score-status" id="score-status-2">BEST MATCH</span>
-                  </div>
-                  <div class="unit-score-card" id="score-card-3">
-                    <span class="unit-score-name">UNIT 03</span>
-                    <div class="unit-score-val" id="score-val-3">N/A</div>
-                    <span class="unit-score-status" id="score-status-3">OUT OF POOL</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Real-Time Telemetry Cockpit Gauges -->
-              <div class="telemetry-cockpit-grid">
-                <div class="gauge-card">
-                  <span class="gauge-label">Active Speed</span>
-                  <div class="gauge-value" id="gauge-speed">0.0 m/s</div>
-                </div>
-                <div class="gauge-card">
-                  <span class="gauge-label">Cable Tension</span>
-                  <div class="gauge-value" id="gauge-tension">14.2 kN</div>
-                </div>
-                <div class="gauge-card">
-                  <span class="gauge-label">Motor RPM</span>
-                  <div class="gauge-value" id="gauge-rpm">0 RPM</div>
-                </div>
-              </div>
-
-              <!-- Manual Overrides & Action Triggers -->
-              <div class="manual-triggers">
-                <button id="btn-door-open" class="btn btn-ghost" style="font-size: 0.8rem; padding: 8px;">
-                  Open Doors (U1)
-                </button>
-                <button id="btn-door-close" class="btn btn-ghost" style="font-size: 0.8rem; padding: 8px;">
-                  Close Doors (U1)
-                </button>
-              </div>
-
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top: 10px;">
-                <button id="btn-spark-test" class="btn btn-ghost" style="font-size: 0.78rem; padding: 10px;">
-                  ⚡ Rail Brake Sparks
-                </button>
-                <button id="btn-trigger-emergency" class="btn btn-danger" style="font-size: 0.78rem; padding: 10px;">
-                  🚨 Emergency Rescue
-                </button>
-              </div>
-            </div>
-
-            <!-- Real-time Event Terminal -->
-            <div class="panel-card live-console-card">
-              <div class="panel-card-title">
-                <span>System Event Stream</span>
-                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);">TERMINAL OUT</span>
-              </div>
-              <div class="console-viewport" id="live-console"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ====================================================================
-         LOOK ALGORITHM DEEP DIVE
-         ==================================================================== -->
-    <section class="algorithm-section" id="algorithm">
-      <div class="container">
-        <div class="algo-grid">
+        <!-- 1. Live Lift Status Card (span 2) -->
+        <article class="card card-col-2" id="simulator-preview">
           <div>
-            <div class="section-label"><span>02</span> Algorithm</div>
-            <h2 class="section-title">The Direction-Aware LOOK Algorithm</h2>
-            <p class="section-subtitle">
-              Naive dispatchers only calculate absolute distance (`|f - S|`), causing erratic direction switching and starvation. The LOOK algorithm accounts for current motion and travel direction.
-            </p>
-
-            <div class="algo-steps-list">
-              <div class="algo-step-card">
-                <div class="algo-step-number">01</div>
-                <div class="algo-step-content">
-                  <h4>Approaching in Same Direction (Golden Path)</h4>
-                  <p>When an elevator is traveling towards the passenger floor and the passenger wants to move in that identical direction, the passenger is boarded along the current sweep with minimal delay (Cost: <code>|S - f|</code>).</p>
+            <div class="card-top">
+              <span class="card-label">01 / Status</span>
+              <span class="card-label" id="system-time">10 Floors • 3 Units</span>
+            </div>
+            <h2 class="card-title">Live dispatch telemetry</h2>
+            <p class="card-desc">Calm, direction-aware multi-car positioning based on active hall requests.</p>
+            
+            <div class="shaft-diagram">
+              <div class="shaft-col">
+                <span class="shaft-header">Lift A</span>
+                <div class="shaft-track">
+                  <div class="shaft-car" id="car-1" style="top: 68px;">
+                    <span id="car-1-f">F3</span>
+                    <span class="shaft-dir" id="car-1-d">▲</span>
+                  </div>
                 </div>
               </div>
-
-              <div class="algo-step-card">
-                <div class="algo-step-number">02</div>
-                <div class="algo-step-content">
-                  <h4>Approaching in Opposite Direction</h4>
-                  <p>If the elevator is cruising towards the passenger but the passenger wants to ride in reverse, the car finishes its sweep to the top/bottom floor before returning to pick up the rider.</p>
+              <div class="shaft-col">
+                <span class="shaft-header">Lift B</span>
+                <div class="shaft-track">
+                  <div class="shaft-car" id="car-2" style="top: 22px;">
+                    <span id="car-2-f">F7</span>
+                    <span class="shaft-dir" id="car-2-d">▼</span>
+                  </div>
                 </div>
               </div>
-
-              <div class="algo-step-card">
-                <div class="algo-step-number">03</div>
-                <div class="algo-step-content">
-                  <h4>Passed Floor (Turnaround Penalty)</h4>
-                  <p>If the car has already ascended or descended past the passenger, it must complete its full trip and reverse, receiving a heavy distance penalty so other idle cars are preferred.</p>
+              <div class="shaft-col">
+                <span class="shaft-header">Lift C (Emg)</span>
+                <div class="shaft-track">
+                  <div class="shaft-car" id="car-3" style="top: 88px;">
+                    <span id="car-3-f">F1</span>
+                    <span class="shaft-dir" id="car-3-d">—</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+          <a href="elevator-3d.html" class="card-footer-link">Open full 3D simulation →</a>
+        </article>
 
-          <!-- Comparison Table Card -->
-          <div class="algo-comparison-table">
-            <h3 style="font-size: 1.25rem; margin-bottom: 8px;">Dispatch Strategy Benchmarks</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">Empirical comparison in a 10-floor building under peak traffic load.</p>
+        <!-- 2. Throughput Metric Card -->
+        <article class="card">
+          <div>
+            <div class="card-top">
+              <span class="card-label">02 / Metrics</span>
+            </div>
+            <h2 class="card-title">Throughput</h2>
+            <div class="stat-number">+42%</div>
+            <p class="card-desc">average wait time reduction over first-come-first-served scheduling.</p>
+            <svg class="sparkline-svg" viewBox="0 0 140 38" aria-hidden="true">
+              <path class="sparkline-path" d="M2,32 L22,28 L42,30 L62,18 L82,22 L102,12 L122,14 L138,4" />
+            </svg>
+          </div>
+          <span class="card-label" style="margin-top:14px;">10-floor benchmark</span>
+        </article>
 
-            <div class="comparison-table-wrap">
-              <table class="comp-table">
-                <thead>
-                  <tr>
-                    <th>Metric</th>
-                    <th>Naive Distance</th>
-                    <th>FCFS Queue</th>
-                    <th>LOOK Algorithm</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Direction Awareness</td>
-                    <td><span class="badge-tag badge-poor">No</span></td>
-                    <td><span class="badge-tag badge-poor">No</span></td>
-                    <td><span class="badge-tag badge-winner">Full Scan</span></td>
-                  </tr>
-                  <tr>
-                    <td>Average Wait Time</td>
-                    <td>38.4s</td>
-                    <td>46.2s</td>
-                    <td><span class="badge-tag badge-winner">18.6s</span></td>
-                  </tr>
-                  <tr>
-                    <td>Motor Energy Draw</td>
-                    <td>High</td>
-                    <td>Very High</td>
-                    <td><span class="badge-tag badge-winner">Optimal</span></td>
-                  </tr>
-                  <tr>
-                    <td>Starvation Prevention</td>
-                    <td><span class="badge-tag badge-poor">Risky</span></td>
-                    <td><span class="badge-tag badge-fair">Guaranteed</span></td>
-                    <td><span class="badge-tag badge-winner">Max Bounded</span></td>
-                  </tr>
-                  <tr>
-                    <td>Emergency Priority</td>
-                    <td>Manual</td>
-                    <td>Manual</td>
-                    <td><span class="badge-tag badge-winner">Override Unit</span></td>
-                  </tr>
-                </tbody>
-              </table>
+        <!-- 3. LOOK Algorithm Card -->
+        <article class="card" id="algorithm">
+          <div>
+            <div class="card-top">
+              <span class="card-label">03 / Scheduling</span>
+            </div>
+            <h2 class="card-title">LOOK algorithm</h2>
+            <p class="card-desc">Cars continue in their current travel direction until no calls remain ahead.</p>
+            <ul class="steps-list">
+              <li><span class="step-num">1</span> Pick requests along current travel vector</li>
+              <li><span class="step-num">2</span> Service calls in ascending or descending order</li>
+              <li><span class="step-num">3</span> Reverse direction only when ahead queue is empty</li>
+            </ul>
+          </div>
+          <a href="elevator-group-3d.html" class="card-footer-link">Compare dispatch modes →</a>
+        </article>
+
+        <!-- 4. Architecture Card -->
+        <article class="card" id="architecture">
+          <div>
+            <div class="card-top">
+              <span class="card-label">04 / OOP Design</span>
+            </div>
+            <h2 class="card-title">Core classes</h2>
+            <p class="card-desc">Written in C++17 with strict encapsulation, inheritance, and nested composition.</p>
+            <ul class="class-list">
+              <li class="class-item"><span>Elevator</span> <span class="class-kind">base</span></li>
+              <li class="class-item"><span>EmergencyElevator</span> <span class="class-kind">derived</span></li>
+              <li class="class-item"><span>ElevatorDispatchSystem</span> <span class="class-kind">dispatcher</span></li>
+              <li class="class-item"><span>ElevatorRequest</span> <span class="class-kind">data</span></li>
+            </ul>
+          </div>
+          <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System/blob/main/src/code.cpp" target="_blank" rel="noopener" class="card-footer-link">View code.cpp on GitHub →</a>
+        </article>
+
+        <!-- 5. 3D Building Sim Card -->
+        <article class="card">
+          <div>
+            <div class="card-top">
+              <span class="card-label">05 / Interactive</span>
+            </div>
+            <h2 class="card-title">3D Cutaway Tower</h2>
+            <p class="card-desc">Self-contained Three.js simulation with four corner shafts and independent queues.</p>
+            <div class="sim-preview-box">
+              <div class="sim-preview-wireframe">
+                <span></span><span></span><span></span><span></span><span></span>
+                <div class="sim-preview-car"></div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </section>
+          <a href="elevator-3d.html" class="card-footer-link">Launch corner tower →</a>
+        </article>
 
-    <!-- ====================================================================
-         OOP ARCHITECTURE & DESIGN PATTERNS MATRIX
-         ==================================================================== -->
-    <section class="oop-section" id="architecture">
-      <div class="container">
-        <div style="text-align: center; margin-bottom: 56px;">
-          <div class="section-label"><span>03</span> Architecture</div>
-          <h2 class="section-title">Strict Object-Oriented C++ Design</h2>
-          <p class="section-subtitle" style="margin: 0 auto;">
-            Engineered with industry-standard C++17 object-oriented design patterns, high cohesion, low coupling, and zero abstraction leaks.
-          </p>
-        </div>
-
-        <div class="oop-cards-grid">
-          <!-- Card 1: Nested Class -->
-          <div class="oop-card">
-            <span class="oop-card-tag">STRUCTURAL</span>
-            <h3>Nested Class</h3>
-            <p><code>ElevatorMotor</code> is declared privately inside <code>Elevator</code> to encapsulate horsepower and operational state from external classes.</p>
-            <div class="oop-code-snip">
-class Elevator {<br>
-&nbsp;&nbsp;class ElevatorMotor {<br>
-&nbsp;&nbsp;&nbsp;&nbsp;void start(); void stop();<br>
-&nbsp;&nbsp;};<br>
-};
+        <!-- 6. Team Card (span 2) -->
+        <article class="card card-col-2" id="team">
+          <div>
+            <div class="card-top">
+              <span class="card-label">06 / Authors</span>
+              <span class="card-label">CS 261 Assignment</span>
             </div>
+            <h2 class="card-title">Student engineers</h2>
+            <p class="card-desc">Built as a course project at Indian Institute of Information Technology Vadodara.</p>
+            <ul class="team-list">
+              <li class="team-member">
+                <span class="avatar-initials">SR</span>
+                <span class="team-name">Shobhit Rai</span>
+                <span class="team-id">20251502032</span>
+              </li>
+              <li class="team-member">
+                <span class="avatar-initials">KK</span>
+                <span class="team-name">Krish Kumar</span>
+                <span class="team-id">20251502015</span>
+              </li>
+              <li class="team-member">
+                <span class="avatar-initials">SV</span>
+                <span class="team-name">Siddhi Vyas</span>
+                <span class="team-id">20251501163</span>
+              </li>
+              <li class="team-member">
+                <span class="avatar-initials">TS</span>
+                <span class="team-name">Tamanna Sharma</span>
+                <span class="team-id">20251502034</span>
+              </li>
+              <li class="team-member">
+                <span class="avatar-initials">PN</span>
+                <span class="team-name">Pranjali Nama</span>
+                <span class="team-id">20251502022</span>
+              </li>
+            </ul>
           </div>
+          <span class="card-label" style="margin-top:14px;">IIIT Vadodara • Autumn 2026</span>
+        </article>
 
-          <!-- Card 2: Inheritance & final -->
-          <div class="oop-card">
-            <span class="oop-card-tag">INHERITANCE</span>
-            <h3>Final Derived Class</h3>
-            <p><code>EmergencyElevator</code> inherits from <code>Elevator</code> and is marked with the <code>final</code> keyword to restrict unauthorized subclassing.</p>
-            <div class="oop-code-snip">
-class EmergencyElevator final<br>
-&nbsp;&nbsp;: public Elevator {<br>
-&nbsp;&nbsp;string sirenCode;<br>
-};
+        <!-- 7. Latest Update Card -->
+        <article class="card" id="models">
+          <div>
+            <div class="card-top">
+              <span class="card-label">07 / Changelog</span>
+              <span class="card-label">Nov 2026</span>
             </div>
+            <h2 class="card-title">3D group dispatch release</h2>
+            <p class="card-desc">Added live comparison between LOOK/SCAN, Nearest Car, and Least Waiting Time cost functions in WebGL.</p>
           </div>
+          <a href="elevator-group-3d.html" class="card-footer-link">Read documentation →</a>
+        </article>
 
-          <!-- Card 3: Virtual Overrides -->
-          <div class="oop-card">
-            <span class="oop-card-tag">POLYMORPHISM</span>
-            <h3>Runtime Polymorphism</h3>
-            <p>Base class pointer <code>Elevator*</code> triggers dynamic dispatch via <code>virtual move()</code> and <code>override display()</code> methods.</p>
-            <div class="oop-code-snip">
-virtual void display() const;<br>
-void display() const override;
-            </div>
-          </div>
-
-          <!-- Card 4: Stream Overloading -->
-          <div class="oop-card">
-            <span class="oop-card-tag">OPERATOR</span>
-            <h3>Stream Overloading</h3>
-            <p>Overloaded <code>operator&lt;&lt;</code> via <code>friend</code> functions allows direct object streaming to <code>std::cout</code> without getters.</p>
-            <div class="oop-code-snip">
-friend ostream&amp; operator&lt;&lt;(<br>
-&nbsp;&nbsp;ostream&amp; os, const Elevator&amp; e<br>
-);
-            </div>
-          </div>
-
-          <!-- Card 5: Equality Overloading -->
-          <div class="oop-card">
-            <span class="oop-card-tag">OPERATOR</span>
-            <h3>Equality Operator</h3>
-            <p>Overloaded <code>operator==</code> on <code>ElevatorRequest</code> facilitates instant comparison of duplicate trips across queue queues.</p>
-            <div class="oop-code-snip">
-bool operator==(<br>
-&nbsp;&nbsp;const ElevatorRequest&amp; other<br>
-) const;
-            </div>
-          </div>
-
-          <!-- Card 6: Static Members -->
-          <div class="oop-card">
-            <span class="oop-card-tag">STATIC</span>
-            <h3>Static Analytics</h3>
-            <p><code>totalRequests</code> and <code>getTotalRequests()</code> maintain a class-level counter of all elevator journeys across the tower.</p>
-            <div class="oop-code-snip">
-static int totalRequests;<br>
-static int getTotalRequests();
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ====================================================================
-         UML MODELS & REPOSITORY DOCUMENTATION
-         ==================================================================== -->
-    <section class="sec" id="diagrams" style="padding: 80px 0; border-top: 1px solid var(--border-subtle);">
-      <div class="container">
-        <div style="text-align: center; margin-bottom: 48px;">
-          <div class="section-label"><span>04</span> Documentation</div>
-          <h2 class="section-title">System Analysis & UML Artifacts</h2>
-          <p class="section-subtitle" style="margin: 0 auto;">
-            Explore the formal software engineering models included with this repository.
-          </p>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-          <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System/blob/main/docs/Domain-class-diagram.png.jpeg" target="_blank" rel="noopener" class="glass-card" style="text-decoration: none; color: inherit;">
-            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-cyan); display: block; margin-bottom: 8px;">UML CLASS DIAGRAM</span>
-            <h4 style="font-size: 1.1rem; margin-bottom: 6px;">Domain Class Architecture</h4>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Visualizes inheritance, aggregation of motor components, and system controllers.</p>
-          </a>
-
-          <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System/blob/main/docs/object-diagram.png.png" target="_blank" rel="noopener" class="glass-card" style="text-decoration: none; color: inherit;">
-            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-cyan); display: block; margin-bottom: 8px;">UML OBJECT DIAGRAM</span>
-            <h4 style="font-size: 1.1rem; margin-bottom: 6px;">Runtime Object State</h4>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">State of Elevator 1, 2, and 3 during active dispatch with directional queues.</p>
-          </a>
-
-          <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System/blob/main/docs/crc-cards.md" target="_blank" rel="noopener" class="glass-card" style="text-decoration: none; color: inherit;">
-            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-cyan); display: block; margin-bottom: 8px;">CLASS RESPONSIBILITIES</span>
-            <h4 style="font-size: 1.1rem; margin-bottom: 6px;">CRC Cards Specification</h4>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Complete breakdown of class responsibilities and collaboration contracts.</p>
-          </a>
-
-          <a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System/blob/main/docs/use-cases.md" target="_blank" rel="noopener" class="glass-card" style="text-decoration: none; color: inherit;">
-            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-cyan); display: block; margin-bottom: 8px;">BEHAVIORAL SPEC</span>
-            <h4 style="font-size: 1.1rem; margin-bottom: 6px;">Use Cases & Flows</h4>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Detailed flows for normal ride calls, multi-rider pickups, and stuck rescues.</p>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ====================================================================
-         TEAM CONTRIBUTORS SECTION
-         ==================================================================== -->
-    <section class="team-section" id="team">
-      <div class="container">
-        <div style="text-align: center; margin-bottom: 48px;">
-          <div class="section-label"><span>05</span> Contributors</div>
-          <h2 class="section-title">The Engineering Team</h2>
-          <p class="section-subtitle" style="margin: 0 auto;">
-            Designed and built for the Object-Oriented Programming and Systems Architecture curriculum.
-          </p>
-        </div>
-
-        <div class="team-grid">
-          <!-- Member 1 -->
-          <div class="member-card">
-            <div class="member-avatar">SR</div>
-            <h4 class="member-name">Shobhit Rai</h4>
-            <span class="member-id">20251502032</span>
-          </div>
-
-          <!-- Member 2 -->
-          <div class="member-card">
-            <div class="member-avatar">KK</div>
-            <h4 class="member-name">Krish Kumar</h4>
-            <span class="member-id">20251502015</span>
-          </div>
-
-          <!-- Member 3 -->
-          <div class="member-card">
-            <div class="member-avatar">SV</div>
-            <h4 class="member-name">Siddhi Vyas</h4>
-            <span class="member-id">20251501163</span>
-          </div>
-
-          <!-- Member 4 -->
-          <div class="member-card">
-            <div class="member-avatar">TS</div>
-            <h4 class="member-name">Tamanna Sharma</h4>
-            <span class="member-id">20251502034</span>
-          </div>
-
-          <!-- Member 5 -->
-          <div class="member-card">
-            <div class="member-avatar">PN</div>
-            <h4 class="member-name">Pranjali Nama</h4>
-            <span class="member-id">20251502022</span>
-          </div>
-        </div>
       </div>
     </section>
   </main>
 
-  <!-- ====================================================================
+  <!-- ========================================================================
        FOOTER
-       ==================================================================== -->
-  <footer class="site-footer">
-    <div class="container">
-      <div class="footer-top">
-        <div class="footer-brand">
-          <a href="#hero" class="logo">
-            <div class="logo-icon">
-              <svg viewBox="0 0 24 24">
-                <path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h10V5H7zm2 2h6v2H9V7zm0 4h6v2H9v-2zm0 4h6v2H9v-2z"/>
-              </svg>
-            </div>
-            <span>AEROVATOR<sup>3.0</sup></span>
-          </a>
-          <p>A more practical and efficient take on Elevator Dispatch Systems.</p>
-        </div>
-
-        <ul class="footer-links">
-          <li><a href="#simulator">Simulator</a></li>
-          <li><a href="#algorithm">LOOK Algorithm</a></li>
-          <li><a href="#architecture">OOP Matrix</a></li>
-          <li><a href="#diagrams">UML Specs</a></li>
-          <li><a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System" target="_blank" rel="noopener">GitHub</a></li>
-        </ul>
-      </div>
-
-      <div class="footer-bottom">
-        <span>© 2026 Aerovator Engineering Team. Open-Source Educational Project.</span>
-        <a href="#hero" style="color: var(--accent-blue); text-decoration: none;">Back to top ↑</a>
-      </div>
+       ======================================================================== -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>© 2026 Aerovator • Made at IIIT Vadodara</span>
+      <ul class="footer-links">
+        <li><a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="elevator-3d.html">3D Sim</a></li>
+        <li><a href="elevator-group-3d.html">Group Control</a></li>
+        <li><a href="https://github.com/anuragbraveboy-sudo/Elevator-Dispatching-System/tree/main/docs" target="_blank" rel="noopener">Docs</a></li>
+      </ul>
     </div>
   </footer>
 
-  <script src="app.js"></script>
+  <!-- ========================================================================
+       SCRIPTS: THEME, SCROLL REVEAL & CALM SHAFT SIMULATION
+       ======================================================================== -->
+  <script>
+    // 1. Theme Management (Light / Dark)
+    const themeToggle = document.getElementById('theme-toggle');
+    const iconMoon = document.getElementById('theme-icon-moon');
+    const iconSun = document.getElementById('theme-icon-sun');
+
+    function applyTheme(theme) {
+      if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.startViewTransition(() => setThemeState(theme));
+      } else {
+        setThemeState(theme);
+      }
+    }
+
+    function setThemeState(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('aerovator_theme', theme);
+      if (theme === 'light') {
+        iconMoon.style.display = 'none';
+        iconSun.style.display = 'block';
+      } else {
+        iconMoon.style.display = 'block';
+        iconSun.style.display = 'none';
+      }
+    }
+
+    // Initialize from storage or system preference
+    const savedTheme = localStorage.getItem('aerovator_theme') || 
+      (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    setThemeState(savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
+    // 2. Sticky Nav Hairline Border on Scroll
+    const navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+      navbar.classList.toggle('scrolled', window.scrollY > 20);
+    }, { passive: true });
+
+    // 3. Scroll Reveal for Cards (Subtle 8-12px translation, 300ms ease-out)
+    const cards = document.querySelectorAll('.card');
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1 });
+
+      cards.forEach(card => observer.observe(card));
+    } else {
+      cards.forEach(card => card.classList.add('revealed'));
+    }
+
+    // 4. Calm 2D Lift Telemetry Mini-Animation
+    const lifts = [
+      { id: 'car-1', labelF: 'car-1-f', labelD: 'car-1-d', floor: 3, target: 8, dir: '▲' },
+      { id: 'car-2', labelF: 'car-2-f', labelD: 'car-2-d', floor: 7, target: 1, dir: '▼' },
+      { id: 'car-3', labelF: 'car-3-f', labelD: 'car-3-d', floor: 1, target: 4, dir: '▲' }
+    ];
+
+    function updateMiniLifts() {
+      lifts.forEach(lift => {
+        // Floor height percentage (0 = bottom, 10 = top)
+        if (lift.dir === '▲') {
+          lift.floor += 1;
+          if (lift.floor >= lift.target) {
+            lift.dir = '▼';
+            lift.target = Math.floor(Math.random() * 4);
+          }
+        } else if (lift.dir === '▼') {
+          lift.floor -= 1;
+          if (lift.floor <= lift.target) {
+            lift.dir = '▲';
+            lift.target = 6 + Math.floor(Math.random() * 5);
+          }
+        }
+
+        const topPx = Math.max(8, Math.min(84, 84 - (lift.floor / 10) * 76));
+        const carEl = document.getElementById(lift.id);
+        const fEl = document.getElementById(lift.labelF);
+        const dEl = document.getElementById(lift.labelD);
+
+        if (carEl) carEl.style.top = topPx + 'px';
+        if (fEl) fEl.textContent = 'F' + lift.floor;
+        if (dEl) dEl.textContent = lift.dir;
+      });
+    }
+
+    setInterval(updateMiniLifts, 2400);
+  </script>
 </body>
 </html>
