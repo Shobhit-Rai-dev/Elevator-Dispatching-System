@@ -780,6 +780,21 @@
       sheaveBox.position.set(pos.x, CONFIG.totalHeight + 0.4, pos.z);
       buildingGroup.add(sheaveBox);
 
+      // Floor indicator light on each shaft at each floor
+      const indicatorMat = new THREE.MeshStandardMaterial({
+        color: CONFIG.colors.shaftBeacon,
+        emissive: CONFIG.colors.shaftBeacon,
+        emissiveIntensity: 0.85,
+        roughness: 0.2
+      });
+      for (let f = 0; f <= CONFIG.floors; f++) {
+        const indGeo = new THREE.BoxGeometry(0.35, 0.14, 0.1);
+        const indMesh = new THREE.Mesh(indGeo, indicatorMat);
+        const zOffset = pos.z > 0 ? 0.95 : -0.95;
+        indMesh.position.set(pos.x, f * CONFIG.floorHeight + 2.65, pos.z + zOffset);
+        buildingGroup.add(indMesh);
+      }
+
       // 6B. Elevator Car Group
       const carGroup = new THREE.Group();
       carGroup.position.set(pos.x, 0, pos.z);
