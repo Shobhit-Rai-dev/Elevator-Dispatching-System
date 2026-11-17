@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071116">
+  <title>AeroVator · 3D Building Simulation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    /* =========================================================
+       DESIGN TOKENS & BASE
+       ========================================================= */
+    :root{
+      --bg:#061016;--panel:rgba(8,22,29,.76);--panel-strong:rgba(7,18,25,.96);
+      --line:rgba(167,232,229,.16);--line-bright:rgba(167,232,229,.34);
+      --text:#edf9f7;--muted:#87a7a7;
+      --cyan:#54e5e8;--mint:#a6edc7;--amber:#ffbd66;
+      --mono:'DM Mono',monospace;--sans:'Manrope',sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:auto}
+    button,input{font:inherit;color:inherit;cursor:pointer}
+
+    /* =========================================================
+       SHELL & CANVAS
+       ========================================================= */
+    .sim-shell{
+      position:relative;width:100%;min-height:1180px;height:1180px;overflow:visible;
+      background:radial-gradient(circle at 55% 45%,#12333a 0,#07151d 35%,#040b10 76%);
+    }
+    #webgl-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;outline:none}
+    .scene-vignette{
+      position:absolute;inset:0;z-index:2;pointer-events:none;
+      background:linear-gradient(90deg,rgba(4,12,17,.55),transparent 28%,transparent 74%,rgba(4,12,17,.32)),
+                 linear-gradient(0deg,rgba(3,9,13,.85),transparent 28%,transparent 76%,rgba(3,9,13,.3));
+      mix-blend-mode:multiply;
+    }
+
+    /* =========================================================
+       GLASS PANEL UTILITY
+       ========================================================= */
+    .glass-panel{
+      background:var(--panel);border:1px solid var(--line);
+      box-shadow:0 20px 60px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.04);
+      backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    }
+
+    /* =========================================================
+       SAFETY DECK (top strip)
+       ========================================================= */
+    .safety-deck{
+      position:absolute;z-index:6;top:102px;left:24px;right:24px;border-radius:18px;padding:17px 20px;
+      background:linear-gradient(105deg,rgba(8,26,33,.94),rgba(11,30,34,.8));
+      border-color:rgba(104,225,223,.28);box-shadow:0 18px 55px #0007,inset 0 1px #ffffff0b;
+    }
+    .safety-head{display:flex;align-items:center;justify-content:space-between;gap:18px}
+    .safety-head h1{font-size:22px;letter-spacing:-.06em;margin:7px 0 4px}
+    .safety-head p{color:var(--muted);font-size:11px;margin:0}
+    .safety-state{display:flex;align-items:center;gap:8px;color:var(--mint);font:10px var(--mono);letter-spacing:.1em;white-space:nowrap}
+    .safety-state i{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 14px var(--mint);flex:none}
+    .safety-state i.alert{background:#ff7874;box-shadow:0 0 14px #ff7874}
+    .safety-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:15px}
+    .safety-action{
+      display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;
+      background:#ffffff08;color:var(--text);padding:10px;text-align:left;
+      transition:.2s;
+    }
+    .safety-action:hover{border-color:var(--cyan);background:#68e1df12}
+    .safety-action>b{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:#ffffff0a;color:var(--cyan);font-size:17px}
+    .safety-action strong,.safety-action small{display:block}
+    .safety-action strong{font-size:10px}
+    .safety-action small{font:9px var(--mono);color:var(--muted);margin-top:3px}
+    .safety-action em{margin-left:auto;color:var(--muted);font-size:17px;font-style:normal}
+    .safety-action.fire{border-color:#804749}.safety-action.fire>b{color:#ff7874}
+    .safety-action.medical>b{color:#99e3bd}
+    .safety-action.harassment{border-color:#705a3b}.safety-action.harassment>b{color:#f6bd67}
+    .safety-action.shutdown{border-color:#693f36}.safety-action.shutdown>b{color:#ff9f5a}
+    .safety-foot{display:flex;align-items:center;gap:12px;margin-top:11px;color:#a2b8b5;font:9px var(--mono)}
+    .safety-foot>span:first-child{flex:1}
+    .safety-foot button{border:1px solid #a05b5e;color:#ffc0ba;background:#ff787414;border-radius:7px;padding:6px 8px;font:9px var(--mono);cursor:pointer;display:none}
+    .safety-foot button.shown{display:inline-block}
+
+    /* =========================================================
+       TOP BAR
+       ========================================================= */
+    .topbar{
+      position:absolute;z-index:5;top:20px;left:24px;right:24px;height:66px;border-radius:20px;
+      display:flex;align-items:center;justify-content:space-between;padding:10px 14px 10px 12px;
+    }
+    .brand{display:flex;align-items:center;gap:11px;color:var(--text);text-decoration:none;min-width:190px}
+    .brand-mark{width:42px;height:42px;border-radius:12px}
+    .brand strong{display:block;font-size:13px;letter-spacing:.17em}
+    .brand small{display:block;color:var(--muted);font:10px var(--mono);letter-spacing:.08em;margin-top:3px}
+    .brand b{color:var(--amber);font-weight:500}
+    .topbar-center{display:flex;align-items:center;gap:11px;font:11px var(--mono);letter-spacing:.13em}
+    .slash{color:var(--amber)}.muted-txt{color:var(--muted)}
+    .topbar-actions{display:flex;align-items:center;gap:10px;min-width:190px;justify-content:flex-end}
+    .live-pill{display:flex;align-items:center;gap:8px;border:1px solid rgba(84,229,232,.25);border-radius:999px;padding:8px 12px;color:var(--cyan);font:10px var(--mono);letter-spacing:.12em}
+    .live-pill i,.stream-live i{display:block;width:7px;height:7px;border-radius:50%;background:var(--mint);box-shadow:0 0 12px var(--mint)}
+    .icon-button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:20px;line-height:1;color:var(--muted);transition:.2s}
+    .icon-button:hover{border-color:var(--cyan);color:var(--cyan);transform:rotate(-25deg)}
+
+    /* =========================================================
+       DISPATCH DOCK
+       ========================================================= */
+    .dispatch-dock{position:absolute;z-index:5;left:24px;top:330px;width:260px;border-radius:22px;padding:20px 18px 16px}
+    .eyebrow{font:10px var(--mono);letter-spacing:.14em;color:var(--muted)}
+    .dock-kicker{display:flex;align-items:center;gap:8px;color:var(--cyan);font:10px var(--mono);letter-spacing:.14em}
+    .pulse-dot{width:6px;height:6px;background:var(--amber);border-radius:50%;box-shadow:0 0 10px var(--amber)}
+    .dock-title-row{display:flex;align-items:center;justify-content:space-between;margin-top:13px}
+    .dock-title-row h2{font-size:21px;margin:0;letter-spacing:-.04em}
+    .tower-code{font:10px var(--mono);color:var(--amber);border:1px solid rgba(255,189,102,.3);padding:5px 7px;border-radius:7px}
+    .dock-copy{font-size:12px;line-height:1.55;color:var(--muted);margin:10px 0 16px}
+    .quick-call-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:390px;overflow:auto}
+    .quick-call-list::-webkit-scrollbar{width:4px}
+    .quick-call-list::-webkit-scrollbar-thumb{background:var(--line-bright);border-radius:5px}
+    .call-button{
+      border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.045);border-radius:9px;
+      padding:9px;display:flex;align-items:center;justify-content:space-between;
+      color:var(--muted);font:11px var(--mono);transition:.2s;
+    }
+    .call-button:hover{border-color:var(--cyan);color:var(--text);background:rgba(84,229,232,.1)}
+    .call-button.queued,.call-button.assigned{border-color:var(--amber);color:var(--amber);background:rgba(255,189,102,.13)}
+    .call-button:disabled{opacity:.35;cursor:not-allowed}
+    .dock-foot{border-top:1px solid var(--line);margin-top:16px;padding-top:12px;color:var(--muted);font-size:10px}
+    .key-line{display:inline-block;width:7px;height:7px;border-radius:2px;background:var(--amber);margin-right:7px}
+
+    /* =========================================================
+       HERO COPY
+       ========================================================= */
+    .hero-copy{position:absolute;z-index:4;left:320px;top:372px;width:280px}
+    .accent-eyebrow{color:var(--cyan)}
+    .cyan-dash{display:inline-block;width:20px;height:1px;background:var(--cyan);vertical-align:middle;margin-right:8px}
+    .hero-copy h2{font-size:50px;line-height:.98;letter-spacing:-.075em;margin:16px 0;color:#f3fffc}
+    .hero-copy h2 em{font-style:normal;color:var(--cyan)}
+    .hero-copy p{font-size:13px;line-height:1.65;color:var(--muted);margin:18px 0 20px}
+    .hero-actions{display:flex;gap:7px}
+    .hud-button,.strip-button{
+      border:1px solid var(--line);background:rgba(9,27,33,.72);border-radius:10px;
+      padding:9px 11px;color:var(--muted);font:10px var(--mono);letter-spacing:.06em;transition:.2s;
+    }
+    .hud-button:hover,.hud-button.active{border-color:var(--cyan);color:var(--cyan);background:rgba(84,229,232,.1)}
+    .button-icon{font-size:15px;margin-right:5px}
+    .scene-hint{position:absolute;z-index:4;right:28px;top:280px;color:var(--muted);font:10px var(--mono);letter-spacing:.05em}
+    .hint-key{color:var(--text);border:1px solid var(--line);padding:4px 6px;border-radius:5px;margin-left:8px}
+
+    /* =========================================================
+       TELEMETRY
+       ========================================================= */
+    .telemetry{position:absolute;z-index:5;left:320px;right:30px;bottom:24px;border-radius:20px;padding:15px 18px 16px}
+    .telemetry-head,.panel-title{display:flex;align-items:center;justify-content:space-between}
+    .telemetry-head strong,.panel-title strong{display:block;font-size:13px;margin-top:5px}
+    .telemetry-count{font:10px var(--mono);color:var(--muted)}
+    .telemetry-count b{color:var(--text);font-weight:500}
+    .telemetry-count i{display:inline-block;width:3px;height:3px;border-radius:50%;background:var(--line-bright);margin:0 8px 2px}
+    .fleet-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+    .lift-card{
+      min-width:0;border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:11px;
+      padding:11px 12px;text-align:left;transition:.2s;cursor:pointer;width:100%;
+    }
+    .lift-card:hover,.lift-card.selected{border-color:var(--cyan);background:rgba(84,229,232,.09);transform:translateY(-2px)}
+    .lift-card-head,.lift-card-main{display:flex;align-items:center;justify-content:space-between}
+    .lift-card-head{font:9px var(--mono);color:var(--muted);letter-spacing:.1em}
+    .lift-card-status{color:var(--mint)}
+    .lift-card-main{margin:7px 0}
+    .lift-card-floor{font:24px var(--mono);letter-spacing:-.1em}
+    .lift-card-arrow{font-size:20px;color:var(--cyan)}
+    .lift-card-foot{font:10px var(--mono);color:var(--muted)}
+    .capacity-mini{display:block;height:3px;margin-top:9px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+    .capacity-mini i{display:block;height:100%;background:var(--car-color,var(--cyan));border-radius:4px}
+    .telemetry-empty{color:var(--muted);font-size:11px;padding:12px 0}
+
+    /* =========================================================
+       EVENT PANEL
+       ========================================================= */
+    .event-panel{position:absolute;z-index:5;right:28px;top:390px;width:280px;border-radius:18px;padding:16px}
+    .stream-live{display:flex;align-items:center;gap:6px;color:var(--mint);font:9px var(--mono)}
+    .event-list{margin-top:13px;max-height:160px;overflow:auto}
+    .activity-item{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+    .event-marker{width:5px;height:5px;background:var(--cyan);border-radius:50%;margin-top:5px;flex:none}
+    .event-text{font-size:11px;line-height:1.35;color:var(--text)}
+    .event-text time{display:block;color:var(--muted);font:9px var(--mono);margin-top:4px}
+
+    /* =========================================================
+       CONTROL STRIP
+       ========================================================= */
+    .control-strip{
+      position:absolute;z-index:5;right:28px;bottom:24px;width:280px;border-radius:16px;
+      padding:13px 15px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+    }
+    .control-strip>div{grid-column:1/-1}
+    .strip-button{color:var(--cyan);border-color:rgba(84,229,232,.3)}
+    .speed-control{grid-column:1/-1;display:flex;align-items:center;gap:8px;color:var(--muted);font:10px var(--mono)}
+    .speed-control input{flex:1;accent-color:var(--cyan)}
+
+    /* =========================================================
+       LIFT MODAL
+       ========================================================= */
+    .modal-open{overflow:hidden}
+    .lift-modal{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px}
+    .lift-modal[hidden]{display:none}
+    .modal-backdrop{position:absolute;inset:0;border:0;background:rgba(1,8,12,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+    .lift-modal-card{
+      position:relative;z-index:1;width:min(620px,100%);max-height:min(760px,calc(100vh - 40px));overflow:auto;
+      border:1px solid var(--line-bright);border-radius:22px;
+      background:linear-gradient(145deg,rgba(13,34,41,.98),rgba(5,17,23,.98));
+      box-shadow:0 35px 100px #000b,inset 0 1px 0 #ffffff10;padding:30px;
+    }
+    .modal-close{position:absolute;right:16px;top:13px;border:0;background:transparent;color:var(--muted);font-size:26px;line-height:1}
+    .modal-close:hover{color:var(--cyan)}
+    .lift-modal-view{min-height:360px}
+    .modal-symbol{display:grid;place-items:center;width:48px;height:48px;border:1px solid rgba(84,229,232,.3);border-radius:14px;color:var(--cyan);font-size:28px;margin-bottom:22px;background:#54e5e812}
+    .lift-modal h2{font-size:30px;letter-spacing:-.06em;margin:8px 0}
+    .lift-modal p{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 22px}
+    .lift-login-form{display:grid;gap:8px}
+    .lift-login-form label{font:10px var(--mono);letter-spacing:.08em;color:var(--muted);margin-top:8px}
+    .lift-login-form input{height:42px;border:1px solid var(--line);border-radius:9px;background:#07171d;padding:0 12px;color:var(--text)}
+    .lift-login-form input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #54e5e81a;outline:none}
+    .modal-error{min-height:18px;color:#ff9d91;font-size:11px}
+    .modal-primary{
+      display:flex;align-items:center;justify-content:space-between;border:1px solid var(--cyan);
+      border-radius:9px;background:linear-gradient(105deg,#58d8d9,#4bd0cb);color:#062023;
+      padding:12px 14px;font-weight:800;margin-top:5px;cursor:pointer;
+    }
+    .lift-modal-view>small{display:block;color:#668184;font:10px var(--mono);margin-top:18px}
+    .health-loading{display:grid;place-items:center;min-height:330px;color:var(--muted);font:12px var(--mono);gap:18px}
+    .health-head{display:flex;justify-content:space-between;align-items:flex-start;padding-right:25px}
+    .health-head h2{margin:7px 0 3px}
+    .health-head p{margin:0;color:var(--muted);font:11px var(--mono)}
+    .health-unit-mark{display:grid;place-items:center;width:58px;height:58px;border:1px solid var(--car-color);border-radius:15px;color:var(--car-color);font:16px var(--mono);box-shadow:0 0 22px color-mix(in srgb,var(--car-color) 20%,transparent)}
+    .health-badges{display:flex;flex-wrap:wrap;gap:7px;margin:20px 0}
+    .health-badge{border:1px solid #2b6658;border-radius:999px;padding:6px 9px;color:var(--mint);font:9px var(--mono);letter-spacing:.06em}
+    .health-badge.warning{border-color:#8a6337;color:var(--amber)}
+    .health-badge.danger{border-color:#873f45;color:#ff978d}
+    .health-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .health-stat{border:1px solid var(--line);border-radius:12px;background:#ffffff04;padding:13px}
+    .health-stat>span{display:block;color:var(--muted);font:9px var(--mono);letter-spacing:.08em}
+    .health-stat strong{display:block;font:22px var(--mono);margin:10px 0 4px;letter-spacing:-.05em}
+    .health-stat strong small{font-size:10px;color:var(--muted);letter-spacing:0}
+    .health-stat em{display:block;color:#729092;font:10px var(--mono);font-style:normal}
+    .text-warning{color:var(--amber)!important}
+    .health-bar{height:5px;background:#ffffff12;border-radius:4px;overflow:hidden;margin:11px 0 7px}
+    .health-bar i{display:block;height:100%;border-radius:4px}
+    .health-history{border-top:1px solid var(--line);margin-top:18px;padding-top:16px}
+    .history-title{display:flex;justify-content:space-between;color:var(--muted);font:9px var(--mono);letter-spacing:.08em}
+    .history-title b{font-weight:400;color:var(--cyan)}
+    .health-history ul{list-style:none;padding:0;margin:8px 0 0}
+    .health-history li{border-bottom:1px solid #ffffff0b;padding:9px 0;color:#c1d1d0;font-size:11px;line-height:1.4}
+    .health-history p{color:var(--muted);font-size:11px}
+    .health-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);margin-top:18px;padding-top:14px;color:#6d8588;font:9px var(--mono)}
+    .maintenance-action{border:1px solid rgba(255,189,102,.4);border-radius:8px;background:#ffbd6614;color:var(--amber);padding:9px 10px;font:10px var(--mono)}
+    .maintenance-action:hover{background:#ffbd6626}
+
+    /* =========================================================
+       TOAST
+       ========================================================= */
+    .toast{position:fixed;z-index:40;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--panel-strong);border:1px solid var(--line-bright);border-radius:10px;padding:11px 15px;font-size:12px;transition:.25s}
+    .toast.show{opacity:1;transform:translate(-50%,0)}
+    .toast.error{border-color:#e67878;color:#ffb0a4}
+    .safety-toast{position:fixed;z-index:40;right:22px;bottom:22px;padding:12px 15px;border:1px solid var(--line-bright);border-radius:10px;background:var(--panel-strong);color:var(--text);font:11px var(--mono);box-shadow:0 15px 45px #0008;animation:fadeInUp .25s ease}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+    /* =========================================================
+       RESPONSIVE
+       ========================================================= */
+    @media(max-width:1050px){
+      .hero-copy{left:310px}
+      .event-panel{display:none}
+      .telemetry{right:24px}
+      .control-strip{right:24px;width:250px}
+    }
+    @media(max-width:760px){
+      html,body{overflow:auto}
+      .sim-shell{min-height:1450px;height:1450px}
+      .topbar{left:12px;right:12px;top:12px}
+      .topbar-center{display:none}
+      .brand{min-width:auto}.topbar-actions{min-width:auto}
+      .safety-deck{top:92px;left:12px;right:12px;padding:14px}
+      .safety-head{display:block}
+      .safety-state{margin-top:10px}
+      .safety-actions{grid-template-columns:1fr 1fr}
+      .dispatch-dock{left:12px;top:350px;width:calc(100% - 24px);padding:14px}
+      .quick-call-list{grid-template-columns:repeat(6,1fr);max-height:74px}
+      .dock-copy,.dock-foot{display:none}
+      .dock-title-row{margin-top:8px}
+      .hero-copy{left:18px;top:600px;width:240px}
+      .hero-copy h2{font-size:39px}
+      .scene-hint{top:605px;right:15px;width:110px;text-align:right;line-height:2}
+      .event-panel{right:12px;top:720px;position:absolute;display:block}
+      .telemetry{left:12px;right:12px;bottom:18px;padding:14px}
+      .fleet-cards{grid-template-columns:repeat(2,1fr)}
+      .control-strip{left:12px;right:12px;bottom:230px;width:auto}
+    }
+    @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<main class="sim-shell">
+  <canvas id="webgl-canvas" aria-label="Interactive 3D elevator simulation"></canvas>
+  <div class="scene-vignette" aria-hidden="true"></div>
+
+  <!-- TOP BAR -->
+  <header class="topbar glass-panel">
+    <a class="brand" href="#" aria-label="AeroVator home">
+      <svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="AeroVator mark">
+        <defs>
+          <linearGradient id="shaft" x1="18" y1="78" x2="78" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#54e5e8"/><stop offset="1" stop-color="#9cf3c8"/></linearGradient>
+          <linearGradient id="orbit" x1="20" y1="78" x2="80" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#ffb86b"/><stop offset="1" stop-color="#ffd887"/></linearGradient>
+        </defs>
+        <rect width="96" height="96" rx="25" fill="#0a1820"/>
+        <path d="M28 74V22h40v52M40 74V35h16v39" fill="none" stroke="url(#shaft)" stroke-width="7" stroke-linejoin="round"/>
+        <path d="M18 61c15 10 29 14 42 9 10-4 16-12 18-23" fill="none" stroke="url(#orbit)" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="78" cy="46" r="5" fill="#ffbd66"/>
+      </svg>
+      <span><strong>AEROVATOR</strong><small>BUILDING SYSTEMS <b>SIM</b></small></span>
+    </a>
+    <div class="topbar-center"><span class="eyebrow">NORTH TOWER</span><span class="slash">/</span><span class="muted-txt">LIVE 3D OPERATIONS</span></div>
+    <div class="topbar-actions">
+      <span class="live-pill"><i></i><span id="connection-label">LIVE</span></span>
+      <button id="reset-button" class="icon-button" type="button" title="Reset simulation" aria-label="Reset simulation">↻</button>
+    </div>
+  </header>
+
+  <!-- SAFETY COMMAND CENTER -->
+  <section class="safety-deck glass-panel" aria-labelledby="safety-title">
+    <div class="safety-head">
+      <div>
+        <span class="eyebrow">UNIFIED SAFETY COMMAND CENTER</span>
+        <h1 id="safety-title">One tower. Every response.</h1>
+        <p>Dispatch a lift, inspect its health, or activate a simulation-only safety protocol without leaving the live 3D view.</p>
+      </div>
+      <div class="safety-state">
+        <i id="safety-state-dot"></i>
+        <span id="safety-state-label">ALL SYSTEMS NOMINAL</span>
+      </div>
+    </div>
+    <div class="safety-actions">
+      <button class="safety-action fire" data-safety="FIRE" type="button"><b>⌁</b><span><strong>Fire emergency</strong><small>Nearest-floor stop</small></span><em>→</em></button>
+      <button class="safety-action medical" data-safety="MEDICAL" type="button"><b>+</b><span><strong>Medical emergency</strong><small>Notify maintenance</small></span><em>→</em></button>
+      <button class="safety-action harassment" data-safety="HARASSMENT" type="button"><b>◉</b><span><strong>Harassment / safety</strong><small>Notify security</small></span><em>→</em></button>
+      <button class="safety-action shutdown" id="safety-shutdown" type="button"><b>⏻</b><span><strong>Automatic shutdown</strong><small>Pause movement</small></span><em>→</em></button>
+    </div>
+    <div class="safety-foot">
+      <span id="safety-logic">Nearest safe floor logic ready · strategy remains simulation-only</span>
+      <span id="safety-contacts">Fire: 101 · Medical: 108 · Security: 100</span>
+      <button id="safety-clear" type="button">Clear alert</button>
+    </div>
+  </section>
+
+  <!-- DISPATCH DOCK -->
+  <aside class="dispatch-dock glass-panel" aria-label="Floor dispatch controls">
+    <div class="dock-kicker"><span class="pulse-dot"></span> CALL STATION</div>
+    <div class="dock-title-row"><h2>Send a lift</h2><span class="tower-code">A / 11</span></div>
+    <p class="dock-copy">Select a floor to send the nearest available unit through the tower.</p>
+    <div class="quick-call-list" id="floor-buttons"></div>
+    <div class="dock-foot"><span class="key-line"></span> Amber marks a queued request</div>
+  </aside>
+
+  <!-- HERO COPY -->
+  <section class="hero-copy" aria-label="Simulation introduction">
+    <div class="eyebrow accent-eyebrow"><span class="cyan-dash"></span> AEROVATOR CONTROL DECK</div>
+    <h2>Movement,<br><em>in the air.</em></h2>
+    <p>Explore a living building system. Orbit the tower, follow a car, or dispatch a new call from any level.</p>
+    <div class="hero-actions">
+      <button id="btn-auto-rotate" class="hud-button active" type="button"><span class="button-icon">◌</span> AUTO ORBIT</button>
+      <button id="btn-reset-cam" class="hud-button" type="button"><span class="button-icon">⌖</span> RESET VIEW</button>
+    </div>
+  </section>
+
+  <div class="scene-hint"><span class="hint-key">DRAG</span> orbit <span class="hint-key">SCROLL</span> zoom <span class="hint-key">CLICK</span> follow a car</div>
+
+  <!-- FLEET TELEMETRY -->
+  <section class="telemetry glass-panel" aria-label="Fleet telemetry">
+    <div class="telemetry-head">
+      <div><span class="eyebrow">FLEET TELEMETRY</span><strong>Live unit status</strong></div>
+      <span class="telemetry-count"><b id="metric-moving">00</b> MOVING <i></i> <b id="metric-available">04</b> READY</span>
+    </div>
+    <div class="fleet-cards" id="lift-cards"><div class="telemetry-empty">Initialising fleet telemetry…</div></div>
+  </section>
+
+  <!-- EVENT PANEL -->
+  <aside class="event-panel glass-panel" aria-label="Recent activity">
+    <div class="panel-title">
+      <span><span class="eyebrow">SYSTEM STREAM</span><strong>Recent activity</strong></span>
+      <span class="stream-live"><i></i> LIVE</span>
+    </div>
+    <div class="event-list" id="activity-list"><div class="telemetry-empty">Waiting for activity…</div></div>
+  </aside>
+
+  <!-- CONTROL STRIP -->
+  <section class="control-strip glass-panel" aria-label="Simulation controls">
+    <div><span class="eyebrow">SIMULATION</span><strong>Playback control</strong></div>
+    <button id="simulation-toggle" class="strip-button" type="button">PAUSE</button>
+    <label class="speed-control" for="speed-range">
+      <span>0.5×</span>
+      <input id="speed-range" type="range" min="0.5" max="3" step="0.5" value="1">
+      <span id="speed-value">1.0×</span>
+    </label>
+  </section>
+
+  <!-- LIFT DETAILS MODAL -->
+  <section id="lift-modal" class="lift-modal" hidden aria-modal="true" role="dialog" aria-labelledby="lift-modal-title">
+    <button class="modal-backdrop" type="button" data-close-modal aria-label="Close lift details"></button>
+    <div class="lift-modal-card">
+      <button class="modal-close" type="button" data-close-modal aria-label="Close">×</button>
+      <div id="lift-login-view" class="lift-modal-view">
+        <div class="modal-symbol">↕</div>
+        <span class="eyebrow">RESTRICTED TELEMETRY</span>
+        <h2 id="lift-modal-title">Lift access</h2>
+        <p>Enter operator details to open the selected unit's health and maintenance report.</p>
+        <form id="lift-login-form" class="lift-login-form">
+          <label for="operator-name">Operator name</label>
+          <input id="operator-name" required autocomplete="off" placeholder="e.g. Control room">
+          <label for="operator-code">Access phrase</label>
+          <input id="operator-code" type="password" required autocomplete="off" placeholder="Any demo value">
+          <div id="lift-login-error" class="modal-error" role="alert"></div>
+          <button class="modal-primary" type="submit">Open health report <span>→</span></button>
+        </form>
+        <small>Simulation gate only. Values are never sent or stored.</small>
+      </div>
+      <div id="lift-health-view" class="lift-modal-view" hidden></div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+// =============================================================
+//  AEROVATOR — Self-Contained Simulation (no backend required)
+//  All state lives in JS. LOOK/SCAN dispatch strategy.
+// =============================================================
+
+// ----- CONFIG ------------------------------------------------
+const FLOORS = 11, FLOOR_H = 3.15, HEIGHT = FLOORS * FLOOR_H;
+const COLORS = {1:'#54e5e8', 2:'#a6edc7', 3:'#ffbd66', 4:'#bda1ff'};
+const TRIP_THRESHOLD = 120;
+
+// ----- SIMULATION STATE --------------------------------------
+const sim = {
+  running: true,
+  speed: 1.0,
+  emergencyActive: false,
+  emergencyType: '',
+  shutdown: false,
+  activity: [],
+  requests: [],
+  nextReqId: 1001,
+  lifts: [
+    mkLift(1,'North Express', 0, 900),
+    mkLift(2,'South Swift',   4, 800),
+    mkLift(3,'East Runner',   8, 850),
+    mkLift(4,'West Wing',     2, 950),
+  ]
+};
+
+function mkLift(id, name, floor, cap) {
+  return {
+    id, name, floor, targetFloor: floor,
+    state: 'IDLE', direction: 'IDLE',
+    load_kg: Math.floor(60 + Math.random()*180),
+    capacity_kg: cap,
+    trips: Math.floor(80 + Math.random()*60),
+    trips_since_service: Math.floor(10 + Math.random()*50),
+    trip_threshold: TRIP_THRESHOLD,
+    last_maintenance: 'Nov 10, 2026',
+    next_maintenance: 'Dec 10, 2026',
+    history: [
+      'Nov 10, 2026 · Routine service completed',
+      'Oct 15, 2026 · Cable tension adjusted',
+      'Sep 22, 2026 · Control board firmware update',
+    ],
+    stops: [],
+    overloaded: false,
+  };
+}
+
+function floorName(f) { return Number(f) === 0 ? 'G' : `F${f}`; }
+function esc(v) { return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ----- LOOK/SCAN DISPATCH ------------------------------------
+function lookCost(lift, reqFloor, reqDir) {
+  if (lift.state === 'MAINTENANCE' || lift.state === 'OUT_OF_SERVICE') return 9999;
+  const dist = Math.abs(lift.floor - reqFloor);
+  if (lift.direction === 'IDLE') return dist;
+  if (lift.direction === 'UP') {
+    if (reqFloor >= lift.floor && reqDir === 'up') return reqFloor - lift.floor;
+    if (reqFloor >= lift.floor && reqDir === 'down') return (10 - lift.floor) + (10 - reqFloor) + 2;
+    return (10 - lift.floor) + 20 + reqFloor + 5;
+  }
+  if (lift.direction === 'DOWN') {
+    if (reqFloor <= lift.floor && reqDir === 'down') return lift.floor - reqFloor;
+    if (reqFloor <= lift.floor && reqDir === 'up') return lift.floor + reqFloor + 2;
+    return lift.floor + 20 + (10 - reqFloor) + 5;
+  }
+  return dist + 10;
+}
+
+function dispatchCall(floor, direction) {
+  if (sim.emergencyActive || sim.shutdown) {
+    toast('System in emergency mode — normal dispatch suspended.', true); return;
+  }
+  const req = {id: sim.nextReqId++, floor, direction, status: 'queued', lift_id: 0};
+  sim.requests.push(req);
+
+  let best = null, lowestCost = 9999;
+  sim.lifts.forEach(l => {
+    const c = lookCost(l, floor, direction);
+    if (c < lowestCost) { lowestCost = c; best = l; }
+  });
+
+  if (best && lowestCost < 9000) {
+    req.status = 'assigned'; req.lift_id = best.id;
+    if (!best.stops.includes(floor)) best.stops.push(floor);
+    logActivity(`Lift ${String(best.id).padStart(2,'0')} assigned to ${floorName(floor)} · ${direction.toUpperCase()}`);
+    toast(`Call assigned to Lift ${String(best.id).padStart(2,'0')}.`);
+  } else {
+    logActivity(`Floor ${floorName(floor)} call queued · no unit immediately available`);
+    toast('Call added to the queue.');
+  }
+  updateUI();
+}
+
+// ----- SIMULATION TICK (runs every 600ms) --------------------
+let simTimer = null;
+function simTick() {
+  if (!sim.running || sim.shutdown) return;
+  sim.lifts.forEach(lift => {
+    // Pick next stop
+    if (lift.stops.length > 0 && lift.state !== 'MOVING') {
+      const next = lift.stops[0];
+      if (next !== lift.floor) {
+        lift.targetFloor = next;
+        lift.direction = next > lift.floor ? 'UP' : 'DOWN';
+        lift.state = 'MOVING';
+      } else {
+        lift.stops.shift();
+        lift.state = 'IDLE'; lift.direction = 'IDLE';
+        lift.trips++;  lift.trips_since_service++;
+        lift.load_kg = Math.floor(40 + Math.random()*550);
+        lift.overloaded = lift.load_kg > lift.capacity_kg;
+        if (lift.trips_since_service >= lift.trip_threshold) lift.state = 'MAINTENANCE';
+        // Complete requests at this floor
+        sim.requests.filter(r => r.lift_id === lift.id && r.floor === lift.floor).forEach(r => {
+          r.status = 'completed';
+          logActivity(`Lift ${String(lift.id).padStart(2,'0')} arrived at ${floorName(lift.floor)}`);
+        });
+        // Auto-queue random return journeys occasionally
+        if (Math.random() < 0.25) {
+          const dest = Math.floor(Math.random() * FLOORS);
+          if (!lift.stops.includes(dest)) lift.stops.push(dest);
+        }
+      }
+    } else if (lift.state === 'IDLE' && Math.random() < 0.08) {
+      // Random new passenger
+      const dest = Math.floor(Math.random() * FLOORS);
+      if (dest !== lift.floor && !lift.stops.includes(dest)) {
+        lift.stops.push(dest);
+        logActivity(`New request: ${floorName(lift.floor)} → ${floorName(dest)} assigned to Lift ${lift.id}`);
+      }
+    }
+  });
+  updateUI();
+}
+
+function logActivity(msg) {
+  const now = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  sim.activity.unshift(`${now} · ${msg}`);
+  if (sim.activity.length > 50) sim.activity.length = 50;
+}
+
+// ----- THREE.JS SCENE SETUP ----------------------------------
+const canvas = document.getElementById('webgl-canvas');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07141b);
+scene.fog = new THREE.FogExp2(0x07141b, .015);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, .1, 260);
+camera.position.set(30, 22, 36);
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:false});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = .055;
+controls.target.set(0, 13, 0);
+controls.maxPolarAngle = Math.PI/2 + .06;
+controls.minDistance = 14; controls.maxDistance = 88;
+controls.autoRotate = true; controls.autoRotateSpeed = .42;
+
+// Lighting
+scene.add(new THREE.HemisphereLight(0xbfe8e7, 0x061017, .75));
+const key = new THREE.DirectionalLight(0xe8ffff, 1.4);
+key.position.set(25, 42, 20); key.castShadow = true; scene.add(key);
+const cyanLight = new THREE.PointLight(0x54e5e8, 3, 32);
+cyanLight.position.set(-9, 14, 10); scene.add(cyanLight);
+
+// Ground
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(150, 150),
+  new THREE.MeshStandardMaterial({color:0x061016, roughness:.85, metalness:.1})
+);
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+const grid = new THREE.GridHelper(120, 60, 0x17343b, 0x0b2028);
+grid.position.y = .02; scene.add(grid);
+
+// Building
+const building = new THREE.Group(); scene.add(building);
+const mat = (color, rough=.45, metal=.35) => new THREE.MeshStandardMaterial({color, roughness:rough, metalness:metal});
+const slabMat = mat(0x152832,.34,.65);
+const edgeMat = new THREE.MeshBasicMaterial({color:0x54e5e8});
+const colMat = mat(0x243b45,.4,.7);
+const glassMat = new THREE.MeshPhysicalMaterial({color:0x54e5e8,transparent:true,opacity:.10,roughness:.08,metalness:.1,transmission:.45,side:THREE.DoubleSide});
+
+const slabGeo = new THREE.BoxGeometry(17, .22, 15);
+const colGeo = new THREE.CylinderGeometry(.16, .16, FLOOR_H, 10);
+
+for (let f=0; f<=FLOORS; f++) {
+  const y = f * FLOOR_H;
+  const slab = new THREE.Mesh(slabGeo, slabMat); slab.position.y = y; slab.receiveShadow = true; building.add(slab);
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(17.15,.055,15.15), edgeMat); edge.position.y = y-.14; building.add(edge);
+  if (f < FLOORS) {
+    [[-7,-5.8],[7,-5.8],[-7,5.8],[7,5.8]].forEach(([x,z]) => {
+      const c = new THREE.Mesh(colGeo, colMat); c.position.set(x, y+FLOOR_H/2, z); c.castShadow = true; building.add(c);
+    });
+  }
+}
+// Glass walls (cutaway)
+[[0,-7.5,0],[-8.5,0,Math.PI/2]].forEach(([x,z,ry]) => {
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(x?15:17, HEIGHT), glassMat);
+  wall.position.set(x, HEIGHT/2, z); wall.rotation.y = ry; building.add(wall);
+});
+
+// Roof machinery
+const roofMat = mat(0x1a3540,.3,.7);
+const roofBox = new THREE.Mesh(new THREE.BoxGeometry(5,2,5), roofMat);
+roofBox.position.set(0, HEIGHT+1, 0); building.add(roofBox);
+const mast = new THREE.Mesh(new THREE.CylinderGeometry(.06,.14,5,8), roofMat);
+mast.position.set(0, HEIGHT+5, 0); building.add(mast);
+const beacon = new THREE.Mesh(new THREE.SphereGeometry(.18,8,8), new THREE.MeshBasicMaterial({color:0xff2244}));
+beacon.position.set(0, HEIGHT+8, 0); building.add(beacon);
+
+// 4 Elevator shafts
+const shaftPositions = [[-5.2,4.1],[5.2,4.1],[5.2,-4.1],[-5.2,-4.1]];
+const cars3d = [];
+const selectedLiftIdRef = {current: null};
+
+shaftPositions.forEach(([x,z], i) => {
+  const railMat = mat(0x526b71,.25,.8);
+  [-.72,.72].forEach(dx => {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,HEIGHT+1,8), railMat);
+    rail.position.set(x+dx, HEIGHT/2, z); building.add(rail);
+  });
+  const liftId = i+1;
+  const g = new THREE.Group(); g.userData = {liftId};
+  g.position.set(x, (sim.lifts[i]?.floor||0)*FLOOR_H, z);
+  building.add(g);
+
+  const frame = mat(0x101e25,.3,.8);
+  const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(1.55,.14,1.55), frame);
+  floorMesh.userData = {liftId}; floorMesh.position.y = .07; g.add(floorMesh);
+  const roofMesh = floorMesh.clone(); roofMesh.position.y = 2.35; g.add(roofMesh);
+
+  const cabMat = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(COLORS[liftId]), transparent:true, opacity:.32, roughness:.05, metalness:.1, transmission:.5
+  });
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.48,2.15,1.48), cabMat);
+  cab.userData = {liftId}; cab.position.y = 1.22; g.add(cab);
+
+  const doorMat2 = mat(0x526b73,.3,.75);
+  const d1 = new THREE.Mesh(new THREE.BoxGeometry(.66,2.05,.06), doorMat2);
+  d1.position.set(-.34,1.2,.76); g.add(d1);
+  const d2 = d1.clone(); d2.position.x = .34; g.add(d2);
+
+  const light = new THREE.PointLight(new THREE.Color(COLORS[liftId]), .9, 5);
+  light.position.y = 2; g.add(light);
+
+  const cable = new THREE.Mesh(
+    new THREE.CylinderGeometry(.025,.025,1,6), mat(0x526b73,.25,.9)
+  );
+  cable.position.set(x, HEIGHT, z); building.add(cable);
+
+  cars3d.push({id:liftId, group:g, cable, d1, d2, light});
+});
+
+// Entrance animation
+building.position.y = -HEIGHT * .2;
+let entranceT = 0;
+function easeOut3(t){ return 1 - Math.pow(1-t, 3); }
+
+// ----- RAYCASTING ON 3D CARS ----------------------------------
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+canvas.addEventListener('pointerup', e => {
+  if (e.button !== 0) return;
+  pointer.x = e.clientX/innerWidth*2 - 1;
+  pointer.y = -(e.clientY/innerHeight)*2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(building.children, true).find(item => item.object.userData?.liftId);
+  if (hit) {
+    const id = Number(hit.object.userData.liftId);
+    selectedLiftIdRef.current = id;
+    const c3 = cars3d.find(x => x.id === id);
+    if (c3) { controls.target.copy(c3.group.position); controls.target.y += 1.3; }
+    openLiftModal(id);
+    renderFleet();
+  }
+});
+
+// ----- RENDER LOOP -------------------------------------------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta() * sim.speed;
+
+  // Entrance rise
+  if (entranceT < 1) {
+    entranceT = Math.min(1, entranceT + dt * 0.9);
+    building.position.y = -HEIGHT * .2 * (1 - easeOut3(entranceT));
+  }
+
+  // Move 3D car meshes toward target
+  if (!sim.shutdown) {
+    cars3d.forEach(c3 => {
+      const lift = sim.lifts.find(l => l.id === c3.id);
+      if (!lift) return;
+      const goal = lift.targetFloor * FLOOR_H;
+      const delta = goal - c3.group.position.y;
+      if (Math.abs(delta) > .02) {
+        c3.group.position.y += Math.sign(delta) * Math.min(Math.abs(delta), dt * 1.4 * FLOOR_H);
+      } else {
+        c3.group.position.y = goal;
+        // Update sim floor from 3d position
+        lift.floor = Math.round(c3.group.position.y / FLOOR_H);
+      }
+      // Cable
+      c3.cable.position.y = c3.group.position.y + 2.4;
+      c3.cable.scale.y = Math.max(.1, HEIGHT - (c3.group.position.y + 2.4));
+    });
+  }
+
+  // Beacon pulse
+  beacon.material.color.setHex(Date.now() % 1200 < 600 ? 0xff2244 : 0x661122);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+});
+
+// ----- UI HELPERS --------------------------------------------
+let toastTimer = null;
+function toast(msg, error=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('error', error);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+function safetyToast(msg) {
+  const e = document.createElement('div');
+  e.className = 'safety-toast';
+  e.textContent = msg;
+  document.body.append(e);
+  setTimeout(() => e.remove(), 3400);
+}
+
+// ----- FLOOR BUTTONS -----------------------------------------
+function buildFloorButtons() {
+  const root = document.getElementById('floor-buttons');
+  root.innerHTML = '';
+  for (let f = FLOORS-1; f >= 0; f--) {
+    for (const dir of ['up','down']) {
+      const b = document.createElement('button');
+      b.className = 'call-button'; b.type = 'button';
+      b.dataset.floor = f; b.dataset.direction = dir;
+      b.disabled = (f===0 && dir==='down') || (f===FLOORS-1 && dir==='up');
+      b.innerHTML = `<span>${floorName(f)}</span><b>${dir==='up'?'↑':'↓'}</b>`;
+      b.addEventListener('click', () => {
+        dispatchCall(f, dir);
+        renderCallStates();
+      });
+      root.append(b);
+    }
+  }
+}
+
+function renderCallStates() {
+  const map = new Map();
+  sim.requests.filter(r => r.status !== 'completed').forEach(r => map.set(`${r.floor}:${r.direction}`, r.status));
+  document.querySelectorAll('.call-button').forEach(b => {
+    const s = map.get(`${b.dataset.floor}:${b.dataset.direction}`);
+    b.classList.toggle('queued', s==='queued');
+    b.classList.toggle('assigned', s==='assigned');
+  });
+}
+
+// ----- FLEET CARDS -------------------------------------------
+function renderFleet() {
+  const root = document.getElementById('lift-cards');
+  root.innerHTML = sim.lifts.map(l => {
+    const c = COLORS[l.id] || '#54e5e8';
+    const pct = Math.min(100, Math.round(l.load_kg / l.capacity_kg * 100));
+    const stateLabel = l.state === 'MOVING' ? (l.direction==='UP'?'Moving Up':'Moving Down') : l.state.charAt(0)+l.state.slice(1).toLowerCase();
+    const arrow = l.direction==='UP'?'↑':l.direction==='DOWN'?'↓':'·';
+    const sel = selectedLiftIdRef.current === l.id ? 'selected' : '';
+    return `<button class="lift-card ${sel}" data-lift-id="${l.id}" style="--car-color:${c}" type="button">
+      <span class="lift-card-head"><span>UNIT ${String(l.id).padStart(2,'0')}</span><span class="lift-card-status">${esc(stateLabel.toUpperCase())}</span></span>
+      <span class="lift-card-main"><strong class="lift-card-floor">${floorName(l.floor)}</strong><span class="lift-card-arrow">${arrow}</span></span>
+      <span class="lift-card-foot">${l.load_kg.toLocaleString()} / ${l.capacity_kg.toLocaleString()} KG</span>
+      <span class="capacity-mini"><i style="width:${pct}%"></i></span>
+    </button>`;
+  }).join('');
+
+  // Metrics
+  const moving = sim.lifts.filter(l => l.state==='MOVING').length;
+  const avail  = sim.lifts.filter(l => l.state==='IDLE').length;
+  document.getElementById('metric-moving').textContent = String(moving).padStart(2,'0');
+  document.getElementById('metric-available').textContent = String(avail).padStart(2,'0');
+}
+
+// ----- ACTIVITY STREAM ----------------------------------------
+function renderActivity() {
+  const root = document.getElementById('activity-list');
+  if (!sim.activity.length) { root.innerHTML = '<div class="telemetry-empty">No activity recorded yet.</div>'; return; }
+  root.innerHTML = sim.activity.slice(0,8).map(item => {
+    const p = item.indexOf(' · ');
+    const time = p > -1 ? item.slice(0,p) : '';
+    const text = p > -1 ? item.slice(p+3) : item;
+    return `<div class="activity-item"><i class="event-marker"></i><div class="event-text">${esc(text)}<time>${esc(time)}</time></div></div>`;
+  }).join('');
+}
+
+// ----- FULL UI UPDATE ----------------------------------------
+function updateUI() {
+  renderFleet();
+  renderActivity();
+  renderCallStates();
+}
+
+// ----- MODAL -------------------------------------------------
+function openLiftModal(id) {
+  selectedLiftIdRef.current = id;
+  document.getElementById('lift-modal').hidden = false;
+  document.getElementById('lift-login-view').hidden = false;
+  document.getElementById('lift-health-view').hidden = true;
+  document.getElementById('lift-login-error').textContent = '';
+  document.getElementById('operator-name').value = '';
+  document.getElementById('operator-code').value = '';
+  document.body.classList.add('modal-open');
+  setTimeout(() => document.getElementById('operator-name').focus(), 30);
+}
+
+function closeLiftModal() {
+  document.getElementById('lift-modal').hidden = true;
+  document.body.classList.remove('modal-open');
+}
+
+function renderHealth(lift) {
+  const color = COLORS[lift.id] || '#54e5e8';
+  const pct = Math.min(100, Math.round(lift.load_kg/lift.capacity_kg*100));
+  const due = lift.trips_since_service >= lift.trip_threshold || lift.state === 'MAINTENANCE';
+  document.getElementById('lift-health-view').innerHTML = `
+    <div class="health-head">
+      <div>
+        <span class="eyebrow">UNIT ${String(lift.id).padStart(2,'0')} · LIVE REPORT</span>
+        <h2>${esc(lift.name)}</h2>
+        <p>${floorName(lift.floor)} · ${esc(lift.state)}</p>
+      </div>
+      <span class="health-unit-mark" style="--car-color:${color}">L${String(lift.id).padStart(2,'0')}</span>
+    </div>
+    <div class="health-badges">
+      <span class="health-badge ${lift.state==='MAINTENANCE'?'warning':''}">${esc(lift.state)}</span>
+      <span class="health-badge ${due?'warning':''}"">${due?'SERVICE DUE':'HEALTHY'}</span>
+      ${lift.overloaded?'<span class="health-badge danger">OVER CAPACITY</span>':''}
+    </div>
+    <div class="health-grid">
+      <div class="health-stat"><span>CURRENT WEIGHT</span><strong>${lift.load_kg.toLocaleString()} <small>KG</small></strong>
+        <div class="health-bar"><i style="width:${pct}%;background:${color}"></i></div>
+        <em>${pct}% of ${lift.capacity_kg.toLocaleString()} kg capacity</em></div>
+      <div class="health-stat"><span>TOTAL TRIPS</span><strong>${lift.trips.toLocaleString()}</strong>
+        <em>${lift.trips_since_service} since last service</em></div>
+      <div class="health-stat"><span>MAINTENANCE STATUS</span>
+        <strong class="${due?'text-warning':''}">${due?'Service Due':'Healthy'}</strong>
+        <em>threshold ${lift.trip_threshold} trips</em></div>
+      <div class="health-stat"><span>LAST MAINTAINED</span><strong>${esc(lift.last_maintenance)}</strong>
+        <em>next due ${esc(lift.next_maintenance)}</em></div>
+    </div>
+    <div class="health-history">
+      <div class="history-title"><span>RECENT SERVICE HISTORY</span><b>${lift.history.length} EVENTS</b></div>
+      <ul>${lift.history.map(h => `<li>${esc(h)}</li>`).join('')}</ul>
+    </div>
+    <div class="health-footer">
+      <span>Simulated telemetry · No real lift connection</span>
+      ${lift.state==='MAINTENANCE'?`<button id="complete-maintenance" class="maintenance-action" type="button">Mark maintenance complete</button>`:''}
+    </div>`;
+  document.getElementById('lift-health-view').hidden = false;
+}
+
+// ----- EVENT LISTENERS ----------------------------------------
+// Fleet card click
+document.getElementById('lift-cards').addEventListener('click', e => {
+  const card = e.target.closest('[data-lift-id]');
+  if (!card) return;
+  const id = Number(card.dataset.liftId);
+  selectedLiftIdRef.current = id;
+  const c3 = cars3d.find(x => x.id === id);
+  if (c3) { controls.target.copy(c3.group.position); controls.target.y += 1.3; }
+  renderFleet();
+  openLiftModal(id);
+});
+
+// Login form
+document.getElementById('lift-login-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = document.getElementById('operator-name').value.trim();
+  const code = document.getElementById('operator-code').value;
+  if (!name || !code) { document.getElementById('lift-login-error').textContent = 'Enter both demo values to continue.'; return; }
+  document.getElementById('lift-login-view').hidden = true;
+  const lift = sim.lifts.find(l => l.id === selectedLiftIdRef.current);
+  if (lift) renderHealth(lift);
+});
+
+// Modal close & maintenance
+document.getElementById('lift-modal').addEventListener('click', e => {
+  if (e.target.closest('[data-close-modal]')) closeLiftModal();
+  if (e.target.matches('[data-back-to-login]')) {
+    document.getElementById('lift-health-view').hidden = true;
+    document.getElementById('lift-login-view').hidden = false;
+    document.getElementById('operator-name').focus();
+  }
+  if (e.target.matches('#complete-maintenance')) {
+    const lift = sim.lifts.find(l => l.id === selectedLiftIdRef.current);
+    if (lift) {
+      lift.trips_since_service = 0;
+      lift.state = 'IDLE';
+      lift.last_maintenance = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+      logActivity(`Lift ${String(lift.id).padStart(2,'0')} maintenance recorded`);
+      toast('Maintenance recorded. Lift returned to dispatch.');
+      renderHealth(lift);
+      updateUI();
+    }
+  }
+});
+
+document.addEventListener('keydown', e => { if (e.key==='Escape' && !document.getElementById('lift-modal').hidden) closeLiftModal(); });
+
+// Camera controls
+document.getElementById('btn-auto-rotate').addEventListener('click', e => {
+  controls.autoRotate = !controls.autoRotate;
+  e.currentTarget.classList.toggle('active', controls.autoRotate);
+});
+document.getElementById('btn-reset-cam').addEventListener('click', () => {
+  selectedLiftIdRef.current = null;
+  camera.position.set(30, 22, 36);
+  controls.target.set(0, 13, 0);
+  controls.autoRotate = true;
+  document.getElementById('btn-auto-rotate').classList.add('active');
+  renderFleet();
+});
+
+// Reset sim
+document.getElementById('reset-button').addEventListener('click', () => {
+  sim.lifts.forEach((l,i) => {
+    l.floor = [0,4,8,2][i]; l.targetFloor = l.floor;
+    l.state = 'IDLE'; l.direction = 'IDLE';
+    l.stops = []; l.trips_since_service = 0;
+    cars3d[i].group.position.y = l.floor * FLOOR_H;
+  });
+  sim.requests.length = 0; sim.activity.length = 0;
+  sim.emergencyActive = false; sim.shutdown = false;
+  updateSafetyUI();
+  logActivity('Simulation reset to initial state');
+  toast('Simulation reset to its seeded state.');
+  updateUI();
+});
+
+// Pause / speed
+document.getElementById('simulation-toggle').addEventListener('click', () => {
+  sim.running = !sim.running;
+  document.getElementById('simulation-toggle').textContent = sim.running ? 'PAUSE' : 'RESUME';
+});
+document.getElementById('speed-range').addEventListener('input', e => {
+  sim.speed = Number(e.target.value);
+  document.getElementById('speed-value').textContent = `${sim.speed.toFixed(1)}×`;
+});
+
+// Safety panel
+function updateSafetyUI() {
+  const active = sim.emergencyActive || sim.shutdown;
+  const dot = document.getElementById('safety-state-dot');
+  const label = document.getElementById('safety-state-label');
+  const logic = document.getElementById('safety-logic');
+  const clearBtn = document.getElementById('safety-clear');
+  dot.classList.toggle('alert', active);
+  if (active) {
+    label.textContent = sim.shutdown ? 'AUTOMATIC SHUTDOWN ACTIVE' : `${sim.emergencyType} PROTOCOL ACTIVE`;
+    logic.textContent = 'Lifts secured at nearest safe floor · movement paused';
+    clearBtn.classList.add('shown');
+  } else {
+    label.textContent = 'ALL SYSTEMS NOMINAL';
+    logic.textContent = 'Nearest safe floor logic ready · strategy remains simulation-only';
+    clearBtn.classList.remove('shown');
+  }
+}
+
+document.querySelectorAll('[data-safety]').forEach(b => b.addEventListener('click', () => {
+  const type = b.dataset.safety;
+  sim.emergencyActive = true; sim.emergencyType = type;
+  safetyToast(`${type} protocol active · all lifts securing to nearest floor.`);
+  logActivity(`SAFETY: ${type} protocol activated`);
+  updateSafetyUI(); updateUI();
+}));
+
+document.getElementById('safety-shutdown').addEventListener('click', () => {
+  sim.shutdown = true;
+  safetyToast('Automatic shutdown engaged · movement paused.');
+  logActivity('SHUTDOWN: Automatic shutdown engaged');
+  updateSafetyUI(); updateUI();
+});
+
+document.getElementById('safety-clear').addEventListener('click', () => {
+  sim.emergencyActive = false; sim.shutdown = false; sim.emergencyType = '';
+  safetyToast('Simulation alert cleared.');
+  logActivity('Safety alert cleared by operator');
+  updateSafetyUI(); updateUI();
+});
+
+// ----- BOOT --------------------------------------------------
+buildFloorButtons();
+logActivity('AeroVator simulation initialised · 4 lifts online');
+logActivity('LOOK/SCAN dispatch strategy active');
+updateUI();
+simTimer = setInterval(simTick, 600);
+</script>
+</body>
+</html>
